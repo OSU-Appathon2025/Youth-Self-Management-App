@@ -9,7 +9,7 @@ const getAllGoals = async (req, res) => {
     const { status, category, sort = 'created_at' } = req.query;
 
     let query = supabase
-      .from('goals')
+      .from('GOAL')
       .select('*')
       .eq('user_id', userId);
 
@@ -48,7 +48,7 @@ const getGoalById = async (req, res) => {
     const { id } = req.params;
 
     const { data, error } = await supabase
-      .from('goals')
+      .from('GOAL')
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
@@ -71,7 +71,7 @@ const getGoalById = async (req, res) => {
 const createGoal = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { title, description, category, targetDate, status, milestones } = req.body;
+    const { title, description, category, targetDate, status } = req.body;
 
     // Validate required fields
     if (!title) {
@@ -79,15 +79,14 @@ const createGoal = async (req, res) => {
     }
 
     const { data, error } = await supabase
-      .from('goals')
+      .from('GOAL')
       .insert({
         user_id: userId,
         title,
         description,
         category,
         target_date: targetDate,
-        status: status || 'not_started',
-        milestones: milestones || [],
+        status: status || 'not started',
       })
       .select()
       .single();
@@ -113,18 +112,16 @@ const updateGoal = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { title, description, category, targetDate, status, milestones, progress } = req.body;
+    const { title, description, category, targetDate, status } = req.body;
 
     const { data, error } = await supabase
-      .from('goals')
+      .from('GOAL')
       .update({
         title,
         description,
         category,
         target_date: targetDate,
         status,
-        milestones,
-        progress,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -155,7 +152,7 @@ const deleteGoal = async (req, res) => {
     const { id } = req.params;
 
     const { error } = await supabase
-      .from('goals')
+      .from('GOAL')
       .delete()
       .eq('id', id)
       .eq('user_id', userId);
@@ -172,33 +169,24 @@ const deleteGoal = async (req, res) => {
 };
 
 /**
- * Update goal progress
+ * Update goal status
  */
-const updateGoalProgress = async (req, res) => {
+const updateGoalStatus = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { progress } = req.body;
+    const { status } = req.body;
 
-    // Validate progress value
-    if (progress < 0 || progress > 100) {
-      return res.status(400).json({ error: 'Progress must be between 0 and 100' });
-    }
-
-    // Determine status based on progress
-    let status = 'in_progress';
-    if (progress === 0) {
-      status = 'not_started';
-    } else if (progress === 100) {
-      status = 'completed';
+    // Validate status value
+    const validStatuses = ['not started', 'in progress', 'completed'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Status must be: not started, in progress, or completed' });
     }
 
     const { data, error } = await supabase
-      .from('goals')
+      .from('GOAL')
       .update({
-        progress,
         status,
-        completed_at: progress === 100 ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -211,11 +199,11 @@ const updateGoalProgress = async (req, res) => {
     }
 
     res.status(200).json({
-      message: 'Goal progress updated successfully',
+      message: 'Goal status updated successfully',
       goal: data,
     });
   } catch (error) {
-    console.error('Update goal progress error:', error);
+    console.error('Update goal status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -226,5 +214,5 @@ module.exports = {
   createGoal,
   updateGoal,
   deleteGoal,
-  updateGoalProgress,
+  updateGoalStatus,
 };

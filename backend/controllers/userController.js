@@ -6,17 +6,26 @@ const supabase = require('../config/supabase');
 const getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log('🔍 Looking for USER profile with ID:', userId);
 
     const { data, error } = await supabase
-      .from('users')
+      .from('USER')
       .select('*')
       .eq('id', userId)
       .single();
 
     if (error) {
-      return res.status(404).json({ error: 'User profile not found' });
+      console.error('❌ Profile lookup failed:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      return res.status(404).json({
+        error: 'User profile not found',
+        userId: userId,
+        details: error.message
+      });
     }
 
+    console.log('✅ Profile found:', data);
     res.status(200).json({ profile: data });
   } catch (error) {
     console.error('Get user profile error:', error);
@@ -33,7 +42,7 @@ const updateUserProfile = async (req, res) => {
     const { fullName, dateOfBirth } = req.body;
 
     const { data, error } = await supabase
-      .from('users')
+      .from('USER')
       .update({
         full_name: fullName,
         date_of_birth: dateOfBirth,
@@ -65,7 +74,7 @@ const deleteUserAccount = async (req, res) => {
 
     // Delete user data
     const { error: userError } = await supabase
-      .from('users')
+      .from('USER')
       .delete()
       .eq('id', userId);
 
@@ -90,16 +99,16 @@ const getUserStats = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get counts for tasks and goals
-    const [tasksResult, goalsResult] = await Promise.all([
-      supabase.from('tasks').select('id', { count: 'exact' }).eq('user_id', userId),
-      supabase.from('goals').select('id', { count: 'exact' }).eq('user_id', userId),
+    // Get counts for goals and appointments
+    const [goalsResult, appointmentsResult] = await Promise.all([
+      supabase.from('GOAL').select('id', { count: 'exact' }).eq('user_id', userId),
+      supabase.from('APPOINTMENT').select('id', { count: 'exact' }).eq('user_id', userId),
     ]);
 
     res.status(200).json({
       stats: {
-        totalTasks: tasksResult.count || 0,
         totalGoals: goalsResult.count || 0,
+        totalAppointments: appointmentsResult.count || 0,
       },
     });
   } catch (error) {
@@ -114,7 +123,7 @@ const getUserStats = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const { data, error } = await supabase
-      .from('users')
+      .from('USER')
       .select('*')
       .order('created_at', { ascending: false });
 

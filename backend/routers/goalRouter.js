@@ -43,10 +43,10 @@ router.put('/:id', goalController.updateGoal);
 router.delete('/:id', goalController.deleteGoal);
 
 /**
- * @route   PATCH /api/goals/:id/progress
- * @desc    Update goal progress
+ * @route   PATCH /api/goals/:id/status
+ * @desc    Update goal status
  * @access  Private
  */
-router.patch('/:id/progress', goalController.updateGoalProgress);
+router.patch('/:id/status', goalController.updateGoalStatus);
 
 module.exports = router;

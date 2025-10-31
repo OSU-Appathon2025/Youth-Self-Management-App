@@ -10,9 +10,13 @@ const cors = require('cors');
 // Import routers
 const authRouter = require('./routers/authRouter');
 const userRouter = require('./routers/userRouter');
-const taskRouter = require('./routers/taskRouter');
 const goalRouter = require('./routers/goalRouter');
 const appointmentRouter = require('./routers/appointmentRouter');
+const healthInfoRouter = require('./routers/healthInfoRouter');
+const emergencyContactRouter = require('./routers/emergencyContactRouter');
+const medicationRouter = require('./routers/medicationRouter');
+const selfAssessmentRouter = require('./routers/selfAssessmentRouter');
+const progressReportRouter = require('./routers/progressReportRouter');
 
 // Middleware
 app.use(express.json());
@@ -30,9 +34,13 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
-app.use('/api/tasks', taskRouter);
 app.use('/api/goals', goalRouter);
 app.use('/api/appointments', appointmentRouter);
+app.use('/api/health-info', healthInfoRouter);
+app.use('/api/emergency-contacts', emergencyContactRouter);
+app.use('/api/medications', medicationRouter);
+app.use('/api/self-assessments', selfAssessmentRouter);
+app.use('/api/progress-reports', progressReportRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

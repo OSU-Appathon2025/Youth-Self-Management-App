@@ -5,7 +5,7 @@ const supabase = require('../config/supabase');
  */
 const register = async (req, res) => {
   try {
-    const { email, password, fullName } = req.body;
+    const { email, password, fullName, dateOfBirth } = req.body;
 
     // Validate input
     if (!email || !password) {
@@ -27,9 +27,39 @@ const register = async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
+    // Create corresponding record in USER table
+    if (data.user) {
+      console.log('Creating USER record for:', data.user.id, data.user.email);
+
+      const { data: userData, error: userError } = await supabase
+        .from('USER')
+        .insert({
+          id: data.user.id,
+          email: data.user.email,
+          full_name: fullName || null,
+          date_of_birth: dateOfBirth || null,
+        })
+        .select();
+
+      if (userError) {
+        console.error('❌ Error creating USER record:', userError);
+        console.error('Full error details:', JSON.stringify(userError, null, 2));
+        // Return error to user so they know something went wrong
+        return res.status(500).json({
+          error: 'User registered but profile creation failed',
+          details: userError.message
+        });
+      }
+
+      console.log('✅ USER record created successfully:', userData);
+    } else {
+      console.log('⚠️ No user object returned from signUp');
+    }
+
     res.status(201).json({
       message: 'User registered successfully',
       user: data.user,
+      session: data.session,
     });
   } catch (error) {
     console.error('Registration error:', error);

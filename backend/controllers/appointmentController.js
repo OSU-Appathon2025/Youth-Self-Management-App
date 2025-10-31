@@ -9,7 +9,7 @@ const getAllAppointments = async (req, res) => {
     const { upcoming, past, sort = 'appointment_date' } = req.query;
 
     let query = supabase
-      .from('appointments')
+      .from('APPOINTMENT')
       .select('*')
       .eq('user_id', userId);
 
@@ -46,7 +46,7 @@ const getAppointmentById = async (req, res) => {
     const { id } = req.params;
 
     const { data, error } = await supabase
-      .from('appointments')
+      .from('APPOINTMENT')
       .select('*')
       .eq('id', id)
       .eq('user_id', userId)
@@ -69,7 +69,7 @@ const getAppointmentById = async (req, res) => {
 const createAppointment = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { title, provider, appointmentDate, location, purpose, notes } = req.body;
+    const { title, provider, appointmentDate, location, purpose, notesBefore, notesAfter } = req.body;
 
     // Validate required fields
     if (!title || !appointmentDate) {
@@ -77,7 +77,7 @@ const createAppointment = async (req, res) => {
     }
 
     const { data, error } = await supabase
-      .from('appointments')
+      .from('APPOINTMENT')
       .insert({
         user_id: userId,
         title,
@@ -85,7 +85,8 @@ const createAppointment = async (req, res) => {
         appointment_date: appointmentDate,
         location,
         purpose,
-        notes,
+        notes_before: notesBefore,
+        notes_after: notesAfter,
       })
       .select()
       .single();
@@ -111,17 +112,18 @@ const updateAppointment = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { title, provider, appointmentDate, location, purpose, notes } = req.body;
+    const { title, provider, appointmentDate, location, purpose, notesBefore, notesAfter } = req.body;
 
     const { data, error } = await supabase
-      .from('appointments')
+      .from('APPOINTMENT')
       .update({
         title,
         provider,
         appointment_date: appointmentDate,
         location,
         purpose,
-        notes,
+        notes_before: notesBefore,
+        notes_after: notesAfter,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -152,7 +154,7 @@ const deleteAppointment = async (req, res) => {
     const { id } = req.params;
 
     const { error } = await supabase
-      .from('appointments')
+      .from('APPOINTMENT')
       .delete()
       .eq('id', id)
       .eq('user_id', userId);
