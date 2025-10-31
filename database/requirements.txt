@@ -1,0 +1,3 @@
+supabase==2.22.3
+python-dotenv==1.1s.1
+faker==37.12.0
