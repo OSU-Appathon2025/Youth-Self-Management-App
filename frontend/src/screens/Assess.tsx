@@ -13,152 +13,118 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ConfettiCannon from "react-native-confetti-cannon";
 
-import { updateCurrentUser } from "../storage/userStore";
+// NOTE: this assessment is an in-app knowledge check.
+// It's separate from onboarding quiz and final quiz.
+// You can later swap this question set for whatever you want.
 
-// TYPES ----------------------------------------------------------------
 type Choice = { id: string; text: string; isCorrect?: boolean };
 type Question = {
   id: string;
   text: string;
-  topic: string; // e.g. "Insurance", "Appointments"
+  topic: string;
   choices: Choice[];
 };
 
-// TEMP QUESTIONS (we'll replace with real curriculum later) -----------
-// Make sure exactly ONE choice per question has isCorrect: true
-const QUESTIONS: Question[] = [
+// temporary hardcoded assessment questions
+// you can expand these to match the PDF survey later
+const ASSESS_QUESTIONS: Question[] = [
   {
-    id: "q1",
-    topic: "Insurance",
-    text: "What is a health insurance card mainly used for?",
+    id: "a1",
+    topic: "insurance",
+    text: "Do you know when to show your insurance card?",
     choices: [
-      { id: "a", text: "To prove you graduated high school" },
       {
-        id: "b",
-        text: "To show at the doctor so they know how to bill your visit",
+        id: "c1",
+        text: "At the start of the appointment / check-in desk.",
         isCorrect: true,
       },
-      { id: "c", text: "To buy medicine without a prescription" },
-      { id: "d", text: "To get into concerts for free" },
+      { id: "c2", text: "Only if they ask about money.", isCorrect: false },
+      { id: "c3", text: "You never need it.", isCorrect: false },
     ],
   },
   {
-    id: "q2",
-    topic: "Appointments",
-    text: "If you can't make your appointment, what should you do?",
+    id: "a2",
+    topic: "appointments",
+    text: "If you need to change your appointment time, what do you do?",
     choices: [
       {
-        id: "a",
-        text: "Call the clinic and tell them so you can reschedule",
+        id: "c1",
+        text: "Call or message the clinic to reschedule.",
         isCorrect: true,
       },
-      { id: "b", text: "Just don't show up" },
-      { id: "c", text: "Send your friend instead of you" },
-      { id: "d", text: "Pretend you forgot" },
+      { id: "c2", text: "Just skip it and go next time.", isCorrect: false },
+      {
+        id: "c3",
+        text: "Wait and hope they text you something else.",
+        isCorrect: false,
+      },
     ],
   },
   {
-    id: "q3",
-    topic: "Medication",
-    text: "When you pick up a new prescription, what's important to know?",
+    id: "a3",
+    topic: "meds",
+    text: "You're almost out of a prescription. What's the right move?",
     choices: [
-      { id: "a", text: "What it tastes like" },
       {
-        id: "b",
-        text: "What it’s for and how / when you’re supposed to take it",
+        id: "c1",
+        text: "Ask for a refill (call / portal / pharmacy request).",
         isCorrect: true,
       },
-      { id: "c", text: "If the bottle is cute" },
-      { id: "d", text: "If your friend also wants some" },
-    ],
-  },
-  {
-    id: "q4",
-    topic: "Independence",
-    text: "Who is mainly responsible for keeping track of YOUR health info as you get older?",
-    choices: [
-      { id: "a", text: "Only your parents" },
-      { id: "b", text: "Only the school nurse" },
+      { id: "c2", text: "Just stop taking it.", isCorrect: false },
       {
-        id: "c",
-        text: "You, with help from parents/doctor until you can do it by yourself",
-        isCorrect: true,
+        id: "c3",
+        text: "Cut pills in half so it lasts longer.",
+        isCorrect: false,
       },
-      { id: "d", text: "Some random person on TikTok" },
-    ],
-  },
-  {
-    id: "q5",
-    topic: "Insurance",
-    text: "If a clinic asks 'Who is your insurance provider?', what are they asking?",
-    choices: [
-      { id: "a", text: "Which streaming services you pay for" },
-      { id: "b", text: "Your favorite shoe brand" },
-      {
-        id: "c",
-        text: "The company that helps pay your medical bills",
-        isCorrect: true,
-      },
-      { id: "d", text: "Whether you have cash today" },
     ],
   },
 ];
 
-// you can add more later until it's 20+ questions
-
-// ---------------------------------------------------------------------
-
 export default function Assess({ navigation }: any) {
-  // which answer did the kid pick for each question
+  // which choice the kid picked for each question
   const [answers, setAnswers] = useState<Record<string, string>>({});
-
-  // did they hit submit yet
+  // has the user hit submit yet
   const [submitted, setSubmitted] = useState(false);
-
-  // turn on confetti when they pass
+  // should we fire confetti
   const [fireConfetti, setFireConfetti] = useState(false);
 
-  // used to shake the screen if they skipped something
+  // shake anim when they try to submit with blanks
   const shake = useRef(new Animated.Value(0)).current;
 
-  // pull question list
-  const questions: Question[] = useMemo(() => QUESTIONS, []);
-
-  // progress bar
-  const total = questions.length;
+  // progress bar math
+  const total = ASSESS_QUESTIONS.length;
   const answeredCount = Object.keys(answers).length;
   const progressPct =
     total === 0 ? 0 : Math.round((answeredCount / total) * 100);
 
-  // after submit, how many correct
+  // score math (only after submit)
   const correctCount = useMemo(() => {
     if (!submitted) return 0;
     let ok = 0;
-    for (const q of questions) {
+    for (const q of ASSESS_QUESTIONS) {
       const picked = answers[q.id];
-      const pickedChoice = q.choices.find((c) => c.id === picked);
-      if (pickedChoice?.isCorrect) ok++;
+      const choice = q.choices.find((c) => c.id === picked);
+      if (choice?.isCorrect) ok++;
     }
     return ok;
-  }, [answers, questions, submitted]);
+  }, [answers, submitted]);
 
-  // score %
   const scorePct =
     total === 0 ? 0 : Math.round((correctCount / total) * 100);
+  const passed = submitted && scorePct >= 75; // pass bar for this quiz
 
-  const passed = submitted && scorePct >= 75;
-
-  // user taps on answer
+  // user taps an answer
   function selectChoice(qid: string, cid: string) {
     if (submitted) return; // lock after submit
     setAnswers((prev) => ({ ...prev, [qid]: cid }));
   }
 
+  // submit button
   async function submit() {
-    // check if any question not answered
-    const anyBlank = questions.some((q) => !answers[q.id]);
+    // block if any blank
+    const anyBlank = ASSESS_QUESTIONS.some((q) => !answers[q.id]);
     if (anyBlank) {
-      // shake side to side if missing answers
+      // little shake
       Animated.sequence([
         Animated.timing(shake, {
           toValue: -1,
@@ -184,48 +150,36 @@ export default function Assess({ navigation }: any) {
       return;
     }
 
-    // lock it in
     setSubmitted(true);
 
-    // save result to local storage "profile"
-    try {
-      await updateCurrentUser({
-        hasCompletedAssessment: scorePct >= 75,
-        lastAssessmentScore: scorePct,
-        lastAssessmentAt: new Date().toISOString(),
-      });
-    } catch {
-        // ignore storage errors in demo mode
-    }
-
-    // if they passed, shoot confetti
+    // celebrate if passed
     if (scorePct >= 75) {
       setFireConfetti(true);
       setTimeout(() => setFireConfetti(false), 2500);
     }
   }
 
+  // retake button
   function retake() {
     setSubmitted(false);
     setFireConfetti(false);
     setAnswers({});
   }
 
-  // animation value -> pixels left/right
+  // map shake value to small left/right nudge
   const translateX = shake.interpolate({
     inputRange: [-1, 1],
     outputRange: [-8, 8],
   });
 
-  // UI
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
         <Animated.View style={{ transform: [{ translateX }] }}>
-          {/* Title */}
-          <Text style={styles.title}>Transition Readiness Check</Text>
+          {/* title */}
+          <Text style={styles.title}>Insurance Basics Assessment</Text>
 
-          {/* Progress */}
+          {/* progress bar */}
           <View style={styles.progressWrap}>
             <View style={styles.progressTrack}>
               <View
@@ -238,19 +192,18 @@ export default function Assess({ navigation }: any) {
             <Text style={styles.progressPctText}>{progressPct}%</Text>
           </View>
 
-          {/* Questions */}
-          {questions.map((q, idx) => (
+          {/* questions */}
+          {ASSESS_QUESTIONS.map((q, idx) => (
             <View key={q.id} style={styles.qCard}>
-              <Text style={styles.qIndex}>
-                Q{idx + 1} · {q.topic}
-              </Text>
+              <Text style={styles.qIndex}>Q{idx + 1}</Text>
               <Text style={styles.qText}>{q.text}</Text>
 
               {q.choices.map((c) => {
                 const chosen = answers[q.id] === c.id;
                 const showResult = submitted;
                 const isRight = showResult && c.isCorrect;
-                const isWrongChosen = showResult && chosen && !c.isCorrect;
+                const isWrongChosen =
+                  showResult && chosen && !c.isCorrect;
 
                 return (
                   <Pressable
@@ -258,32 +211,34 @@ export default function Assess({ navigation }: any) {
                     onPress={() => selectChoice(q.id, c.id)}
                     style={[
                       styles.choice,
-                      // before submit, highlight the selected one
+                      // selected pre-submit
                       chosen &&
                         !showResult && {
                           borderColor: "#2563EB",
                           backgroundColor: "#EFF6FF",
                         },
-                      // after submit, show green if correct
+                      // correct after submit
                       isRight && {
                         borderColor: "#16A34A",
                         backgroundColor: "#F0FDF4",
                       },
-                      // after submit, show red if they chose wrong
+                      // wrong (but chosen) after submit
                       isWrongChosen && {
                         borderColor: "#DC2626",
                         backgroundColor: "#FEF2F2",
                       },
                     ]}
                   >
-                    {/* left side: radio + answer text */}
+                    {/* left side: little radio + text */}
                     <View style={styles.choiceLeft}>
                       <View
                         style={[
                           styles.radio,
                           chosen && { borderColor: "#2563EB" },
                           (isRight || isWrongChosen) && {
-                            borderColor: isRight ? "#16A34A" : "#DC2626",
+                            borderColor: isRight
+                              ? "#16A34A"
+                              : "#DC2626",
                           },
                         ]}
                       >
@@ -291,7 +246,9 @@ export default function Assess({ navigation }: any) {
                           <View
                             style={[
                               styles.dot,
-                              isRight && { backgroundColor: "#16A34A" },
+                              isRight && {
+                                backgroundColor: "#16A34A",
+                              },
                             ]}
                           />
                         )}
@@ -300,7 +257,7 @@ export default function Assess({ navigation }: any) {
                       <Text style={styles.choiceText}>{c.text}</Text>
                     </View>
 
-                    {/* right side: only show ✅ / ❌ after submit */}
+                    {/* right side icon only AFTER submit */}
                     {showResult ? (
                       <Ionicons
                         name={
@@ -326,27 +283,30 @@ export default function Assess({ navigation }: any) {
             </View>
           ))}
 
-          {/* Bottom area */}
+          {/* bottom action area */}
           {!submitted ? (
             <Pressable style={styles.primaryBtn} onPress={submit}>
               <Text style={styles.primaryBtnText}>Submit answers</Text>
             </Pressable>
           ) : (
             <View style={{ gap: 10 }}>
-              {/* Score summary */}
+              {/* score strip */}
               <View style={styles.scoreStrip}>
-                <Text style={styles.scoreText}>Score: {scorePct}%</Text>
+                <Text style={styles.scoreText}>
+                  Score: {scorePct}%
+                </Text>
                 <Text
                   style={[
                     styles.scoreText,
-                    { color: passed ? "#16A34A" : "#DC2626" },
+                    {
+                      color: passed ? "#16A34A" : "#DC2626",
+                    },
                   ]}
                 >
                   {passed ? "Passed 🎉" : "Try again"}
                 </Text>
               </View>
 
-              {/* Next action */}
               {passed ? (
                 <Pressable
                   style={[
@@ -360,7 +320,10 @@ export default function Assess({ navigation }: any) {
                   </Text>
                 </Pressable>
               ) : (
-                <Pressable style={styles.primaryBtn} onPress={retake}>
+                <Pressable
+                  style={styles.primaryBtn}
+                  onPress={retake}
+                >
                   <Text style={styles.primaryBtnText}>
                     Retake assessment
                   </Text>
@@ -369,7 +332,7 @@ export default function Assess({ navigation }: any) {
             </View>
           )}
 
-          {/* Confetti on pass */}
+          {/* confetti */}
           {submitted && fireConfetti ? (
             <ConfettiCannon
               key={`confetti-${scorePct}`}
@@ -387,7 +350,6 @@ export default function Assess({ navigation }: any) {
   );
 }
 
-// STYLES ----------------------------------------------------------------
 const styles = StyleSheet.create({
   container: { padding: 16 },
   title: {
@@ -455,6 +417,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    flexShrink: 1,
   },
   radio: {
     width: 18,
@@ -474,6 +437,7 @@ const styles = StyleSheet.create({
   choiceText: {
     color: "#0F172A",
     fontWeight: "600",
+    flexShrink: 1,
   },
 
   primaryBtn: {

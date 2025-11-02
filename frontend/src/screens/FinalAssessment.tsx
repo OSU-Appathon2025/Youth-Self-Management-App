@@ -1,96 +1,230 @@
 // frontend/src/screens/FinalAssessment.tsx
 import React, { useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, SafeAreaView, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+} from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
-import { ONBOARDING_QUESTIONS } from "../data/curriculum";
-import { awardPoints, setFinalPassed } from "../storage/progressStore";
 
-// FYI: For web, the confetti package is optional—if you don’t want it, remove the component & dependency.
-// Install:  npm i react-native-confetti-cannon
+import { FINAL_QUESTIONS, Question } from "../data/curriculum";
+import { setFinalPassed, awardPoints } from "../storage/progressStore";
 
 export default function FinalAssessment({ navigation }: any) {
-  const pool = useMemo(() => ONBOARDING_QUESTIONS.slice().sort(() => Math.random() - 0.5).slice(0, 15), []);
-  const [idx, setIdx] = useState(0);
+  // randomize order a bit if you want
+  const pool: Question[] = useMemo(
+    () => FINAL_QUESTIONS.slice(),
+    []
+  );
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
   const [passed, setPassed] = useState<boolean | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
-  const q = pool[idx];
+  function pick(qid: string, choiceId: string) {
+    if (submitted) return;
+    setAnswers((a) => ({ ...a, [qid]: choiceId }));
+  }
 
-  const pick = (id: string) => setAnswers((a) => ({ ...a, [q.id]: id }));
+  async function submit() {
+    if (submitted) return;
 
-  const submit = async () => {
+    // grade
     let correct = 0;
     pool.forEach((qq) => {
-      const c = qq.choices.find((x) => x.id === answers[qq.id]);
-      if (c?.correct) correct += 1;
+      const chosenId = answers[qq.id];
+      const chosen = qq.choices.find((c) => c.id === chosenId);
+      if (chosen?.correct) correct += 1;
     });
     const pct = Math.round((correct / pool.length) * 100);
-    const didPass = pct >= 80;
-    setPassed(didPass);
-    await setFinalPassed(didPass);
-    if (didPass) await awardPoints(100);
-  };
 
-  if (passed !== null) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB", justifyContent: "center", alignItems: "center", padding: 16 }}>
-        {passed && <ConfettiCannon count={150} origin={{ x: -10, y: 0 }} fadeOut />}
-        <Text style={{ fontSize: 24, fontWeight: "800", marginBottom: 10 }}>
-          {passed ? "You did it! 🎉" : "Almost there!"}
-        </Text>
-        <Text style={{ color: "#475569", textAlign: "center", marginBottom: 16 }}>
-          {passed
-            ? "You passed the final check. Great job!"
-            : "Score < 80%. We’ll highlight sections to review and you can try again."}
-        </Text>
-        <Pressable style={styles.primary} onPress={() => navigation.replace(passed ? "Home" : "Plan")}>
-          <Text style={styles.primaryText}>{passed ? "Go Home" : "See my plan"}</Text>
-        </Pressable>
-      </SafeAreaView>
-    );
+    const didPass = pct >= 80; // <-- you said 80%
+    setSubmitted(true);
+    setPassed(didPass);
+
+    // update plan
+    await setFinalPassed(didPass);
+
+    if (didPass) {
+      await awardPoints(200); // big reward
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2500);
+    }
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Final Assessment</Text>
-        <Text style={styles.subtitle}>Question {idx + 1} of {pool.length}</Text>
+      <ScrollView contentContainerStyle={styles.wrapper}>
+        <Text style={styles.header}>Final Check</Text>
+        <Text style={styles.sub}>
+          Answer these. If you score 80% or higher, you’re done!
+        </Text>
 
-        <View style={styles.card}>
-          <Text style={styles.prompt}>{q.prompt}</Text>
-          {q.choices.map((c) => {
-            const selected = answers[q.id] === c.id;
-            return (
-              <Pressable key={c.id} onPress={() => pick(c.id)} style={[styles.choice, selected && styles.choiceActive]}>
-                <Text style={[styles.choiceText, selected && styles.choiceTextActive]}>{c.label}</Text>
+        {pool.map((q, idx) => {
+          return (
+            <View style={styles.card} key={q.id}>
+              <Text style={styles.qIndex}>Q{idx + 1}</Text>
+              <Text style={styles.qText}>{q.text}</Text>
+
+              {q.choices.map((c) => {
+                const chosen = answers[q.id] === c.id;
+                const show = submitted;
+                const isCorrect = show && c.correct;
+                const isWrongChosen = show && chosen && !c.correct;
+
+                return (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => pick(q.id, c.id)}
+                    style={[
+                      styles.choice,
+                      chosen &&
+                        !show && {
+                          borderColor: "#2563EB",
+                          backgroundColor: "#EFF6FF",
+                        },
+                      isCorrect && {
+                        borderColor: "#10B981",
+                        backgroundColor: "#ECFDF5",
+                      },
+                      isWrongChosen && {
+                        borderColor: "#DC2626",
+                        backgroundColor: "#FEF2F2",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        isCorrect && { color: "#065F46", fontWeight: "700" },
+                        isWrongChosen && { color: "#DC2626", fontWeight: "700" },
+                      ]}
+                    >
+                      {c.text}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })}
+
+        {!submitted ? (
+          <Pressable style={styles.primaryBtn} onPress={submit}>
+            <Text style={styles.primaryBtnText}>Submit answers</Text>
+          </Pressable>
+        ) : (
+          <View style={{ gap: 10 }}>
+            <View style={styles.resultStrip}>
+              <Text style={styles.resultText}>
+                {passed ? "You passed 🎉" : "You need a bit more practice"}
+              </Text>
+            </View>
+
+            {passed ? (
+              <Pressable
+                style={[styles.primaryBtn, { backgroundColor: "#10B981" }]}
+                onPress={() => navigation.replace("Home")}
+              >
+                <Text style={styles.primaryBtnText}>
+                  Go to Home
+                </Text>
               </Pressable>
-            );
-          })}
-          {idx < pool.length - 1 ? (
-            <Pressable style={styles.primary} onPress={() => setIdx((i) => i + 1)}>
-              <Text style={styles.primaryText}>Next</Text>
-            </Pressable>
-          ) : (
-            <Pressable style={styles.primary} onPress={submit}>
-              <Text style={styles.primaryText}>Submit</Text>
-            </Pressable>
-          )}
-        </View>
+            ) : (
+              <Pressable
+                style={styles.primaryBtn}
+                onPress={() => navigation.replace("Plan")}
+              >
+                <Text style={styles.primaryBtnText}>
+                  See what to review
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {showConfetti ? (
+          <ConfettiCannon
+            key="final-pass-confetti"
+            count={180}
+            origin={{ x: 0, y: 0 }}
+            fadeOut
+            autoStart
+          />
+        ) : null}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12 },
-  title: { fontSize: 24, fontWeight: "800", color: "#0F172A" },
-  subtitle: { color: "#64748B" },
-  card: { backgroundColor: "white", borderRadius: 16, padding: 16, gap: 10 },
-  prompt: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
-  choice: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 12, backgroundColor: "#F8FAFC", marginTop: 6 },
-  choiceActive: { backgroundColor: "#2563EB" },
-  choiceText: { color: "#111827", fontWeight: "600" },
-  choiceTextActive: { color: "white" },
-  primary: { backgroundColor: "#2563EB", padding: 12, borderRadius: 12, alignItems: "center", marginTop: 10 },
-  primaryText: { color: "white", fontWeight: "800" },
+  wrapper: { padding: 16 },
+  header: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+  sub: { color: "#64748B", marginBottom: 16 },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    marginBottom: 16,
+  },
+  qIndex: {
+    fontWeight: "800",
+    color: "#334155",
+    marginBottom: 4,
+  },
+  qText: {
+    color: "#111827",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  choice: {
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginTop: 8,
+  },
+  choiceText: {
+    fontWeight: "600",
+    color: "#0F172A",
+  },
+  primaryBtn: {
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  primaryBtnText: {
+    color: "white",
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  resultStrip: {
+    backgroundColor: "#EEF2FF",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  resultText: {
+    color: "#1F2937",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 });

@@ -1,59 +1,550 @@
-// frontend/src/screens/Home.tsx
-import React, { useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   SafeAreaView,
   ScrollView,
   View,
   Text,
-  Pressable,
   StyleSheet,
+  Pressable,
+  Image,
+  Modal,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 
-type NextAppt = {
-  dateLabel: string;
-  timeLabel: string;
-  provider: string;
-  reason: string;
+import {
+  getCurrentUser,
+  UserProfile,
+} from "../storage/userStore";
+
+// Shop Items
+const SHOP_ITEMS = [
+  { id: 'ballerina', name: 'Ballerina Outfit', cost: 50, image: require('../../assets/ballerinaoutfit.png') },
+  { id: 'spider', name: 'Spider-Man Outfit', cost: 70, image: require('../../assets/spiderfit.png') },
+  { id: 'phone', name: 'Phone', cost: 30, image: require('../../assets/phone.png') },
+  { id: 'skateboard', name: 'Skateboard', cost: 45, image: require('../../assets/skateboard.png') },
+];
+
+// Caterpillar with accessories images
+const DRESSED_CATERPILLARS = {
+  ballerina: require('../../assets/ballerina_caterpillar.png'),
+  spider: require('../../assets/spiderpillar.png'),
+  phone: require('../../assets/phonepillar.png'),
+  skateboard: require('../../assets/skatepillar.png'),
 };
 
-type TodoItem = {
-  id: string;
-  type: "assessment" | "goal";
-  title: string;
-  etaMin?: number;
-  status: "todo" | "doing" | "done";
-};
+export default function Home({ navigation }: any) {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [animFrame, setAnimFrame] = useState(0);
+  const [showShop, setShowShop] = useState(false);
+  const [showCloset, setShowCloset] = useState(false);
+  const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [currentOutfit, setCurrentOutfit] = useState<string | null>(null);
+  const [userPoints, setUserPoints] = useState(0);
 
-type HomeProps = {
-  navigation: any;
-  route?: { params?: { needsAssessment?: boolean } };
-};
+  // Caterpillar animation frames
+  const caterpillarFrames = [
+    require('../../assets/cater1.png'),
+    require('../../assets/cater2.png'),
+    require('../../assets/cater3.png'),
+  ];
 
-const Card: React.FC<{ children: React.ReactNode; style?: any }> = ({
-  children,
-  style,
-}) => <View style={[styles.card, style]}>{children}</View>;
+  // Get dressed caterpillar or regular
+  const getCurrentCaterpillar = () => {
+    if (currentOutfit && DRESSED_CATERPILLARS[currentOutfit as keyof typeof DRESSED_CATERPILLARS]) {
+      return DRESSED_CATERPILLARS[currentOutfit as keyof typeof DRESSED_CATERPILLARS];
+    }
+    return caterpillarFrames[animFrame];
+  };
 
-const Chip: React.FC<{ label: string; color?: string }> = ({
-  label,
-  color,
-}) => (
-  <View style={[styles.chip, color ? { backgroundColor: color } : null]}>
-    <Text style={styles.chipText}>{label}</Text>
-  </View>
-);
+  // Animation effect - cycles through caterpillar frames (only when no outfit)
+  useEffect(() => {
+    if (currentOutfit) return; // Don't animate when wearing outfit
+    
+    const interval = setInterval(() => {
+      setAnimFrame((prev) => (prev + 1) % 3);
+    }, 300);
 
-const Row = ({ icon, text }: { icon: any; text: string }) => (
-  <View style={styles.apptRow}>
-    <Ionicons name={icon} size={18} color="#2563EB" />
-    <Text style={styles.apptText}>{text}</Text>
-  </View>
-);
+    return () => clearInterval(interval);
+  }, [currentOutfit]);
 
-const SquareAction = ({
+  // helper: load user from storage
+  async function load() {
+    const u = await getCurrentUser();
+    setUser(u);
+    if (u) {
+      const goalsDone = u.plan.filter((g) => g.done).length;
+      setUserPoints(goalsDone * 10);
+    }
+  }
+
+  // load on mount
+  useEffect(() => {
+    load();
+  }, []);
+
+  // also reload every time Home comes back into focus
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [])
+  );
+
+  // if no user, shove them to Auth screen
+  useEffect(() => {
+    if (user === null) return;
+    if (!user) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Auth" }],
+      });
+    }
+  }, [user, navigation]);
+
+  const handleBuyItem = async (item: any) => {
+    if (userPoints >= item.cost && !ownedItems.includes(item.id)) {
+      const newPoints = userPoints - item.cost;
+      const newOwnedItems = [...ownedItems, item.id];
+      
+      setUserPoints(newPoints);
+      setOwnedItems(newOwnedItems);
+      
+      // Save to storage
+      await AsyncStorage.setItem('userPoints', newPoints.toString());
+      await AsyncStorage.setItem('ownedItems', JSON.stringify(newOwnedItems));
+      
+      alert(`You bought ${item.name}!`);
+    } else if (ownedItems.includes(item.id)) {
+      alert("You already own this item!");
+    } else {
+      alert("Not enough points!");
+    }
+  };
+
+  const handleWearItem = async (itemId: string) => {
+    setCurrentOutfit(itemId);
+    await AsyncStorage.setItem('currentOutfit', itemId);
+    setShowCloset(false);
+    alert("Outfit equipped!");
+  };
+
+  const handleRemoveOutfit = async () => {
+    setCurrentOutfit(null);
+    await AsyncStorage.removeItem('currentOutfit');
+    alert("Outfit removed!");
+  };
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.loadingWrap}>
+        <Text style={{ color: "#64748B" }}>Loading…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // compute progress / points
+  const goalsDone = user.plan.filter((g) => g.done).length;
+  const totalGoals = user.plan.length;
+  const progressPct =
+    totalGoals === 0
+      ? 0
+      : Math.round((goalsDone / totalGoals) * 100);
+
+  // To-Do = goals that are NOT done yet
+  const remainingGoals = user.plan.filter((g) => !g.done);
+  const needsAssessment = !user.hasCompletedAssessment;
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Header bar */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarBubble}>
+              <Text style={styles.avatarText}>
+                {user.name?.[0]?.toUpperCase() || "Y"}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.hello}>
+                Hey {user.name?.split(" ")[0] || "there"} 👋
+              </Text>
+              <Text style={styles.subtitle}>
+                You're doing great
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.pointsPill}>
+            <Text>⚡</Text>
+            <Text style={styles.pointsText}>{userPoints}</Text>
+            <Text style={styles.pointsSub}>pts</Text>
+          </View>
+        </View>
+
+        {/* If they didn't pass onboarding/assessment yet, put a banner */}
+        {needsAssessment ? (
+          <Pressable
+            style={styles.assessmentBanner}
+            onPress={() => navigation.navigate("Assess")}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerTitle}>
+                Start your self-check
+              </Text>
+              <Text style={styles.bannerSub}>
+                Take a quick quiz so we know what to help you learn.
+              </Text>
+            </View>
+            <Ionicons
+              name="arrow-forward-circle"
+              size={28}
+              color="#2563EB"
+            />
+          </Pressable>
+        ) : (
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <View>
+                <Text style={styles.cardTitle}>This Week</Text>
+                <Text style={styles.muted}>
+                  Keep up the momentum!
+                </Text>
+              </View>
+              <View style={styles.ring}>
+                <Text style={styles.ringText}>
+                  {progressPct}%
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { width: `${progressPct}%` },
+                ]}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Animated Caterpillar with Shop/Closet buttons */}
+        <View style={styles.caterpillarContainer}>
+          <View style={styles.caterpillarControls}>
+            <Pressable
+              style={styles.controlBtn}
+              onPress={() => setShowShop(true)}
+            >
+              <Text style={styles.controlBtnText}>🛍️ Shop</Text>
+            </Pressable>
+            <Pressable
+              style={styles.controlBtn}
+              onPress={() => setShowCloset(true)}
+            >
+              <Text style={styles.controlBtnText}>👕 Closet</Text>
+            </Pressable>
+          </View>
+          
+          <Image 
+            source={getCurrentCaterpillar()} 
+            style={styles.caterpillarImage}
+            resizeMode="contain"
+          />
+          
+          {currentOutfit && (
+            <Pressable
+              style={styles.removeOutfitBtn}
+              onPress={handleRemoveOutfit}
+            >
+              <Text style={styles.removeOutfitText}>Remove Outfit</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Coming Up */}
+        <Text style={styles.sectionTitle}>Coming Up</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardSubtitle}>
+            Next Appointment
+          </Text>
+
+          <Row icon="calendar-outline" text="Tuesday, Oct 29" />
+          <Row icon="time-outline" text="3:00 PM" />
+          <Row icon="person-outline" text="Dr. Nguyen" />
+
+          <Text style={[styles.muted, { marginTop: 6 }]}>
+            Check-up
+          </Text>
+
+          <Pressable
+            style={[styles.primaryBtn, { marginTop: 14 }]}
+            onPress={() => navigation.navigate("Appointments")}
+          >
+            <Text style={styles.primaryBtnText}>
+              Start Prep  →
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* To-Do / Goals */}
+        <View style={styles.rowBetween}>
+          <Text style={styles.sectionTitle}>
+            Your Goals
+          </Text>
+          <View style={styles.itemsPill}>
+            <Text style={styles.itemsPillText}>
+              {remainingGoals.length} left
+            </Text>
+          </View>
+        </View>
+
+        {remainingGoals.length === 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.muted}>
+              You've finished everything in your plan 🎉
+            </Text>
+            <Pressable
+              style={[
+                styles.primaryBtn,
+                { marginTop: 12, backgroundColor: "#10B981" },
+              ]}
+              onPress={() => navigation.navigate("Plan")}
+            >
+              <Text style={styles.primaryBtnText}>
+                View full plan
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          remainingGoals.slice(0, 2).map((g) => (
+            <View key={g.id} style={styles.card}>
+              <View style={styles.todoHeader}>
+                <View style={styles.radioEmpty} />
+                <View style={{ flex: 1 }}>
+                  <View style={styles.todoLine1}>
+                    <View style={styles.chip}>
+                      <Text style={styles.chipText}>
+                        Goal
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.todoTitle}>
+                    {g.label}
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={styles.startBtn}
+                  onPress={() =>
+                    navigation.navigate("Plan")
+                  }
+                >
+                  <Text style={styles.startBtnText}>
+                    Work on it
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ))
+        )}
+
+        {/* Quick Actions */}
+        <Text style={styles.sectionTitle}>
+          Quick Actions
+        </Text>
+
+        <View style={styles.quickGrid}>
+          <SquareAction
+            color="#2563EB"
+            icon={
+              <Ionicons
+                name="calendar"
+                size={22}
+                color="white"
+              />
+            }
+            label="My Visits"
+            onPress={() => navigation.navigate("Appointments")}
+          />
+
+          <SquareAction
+            color="#10B981"
+            icon={
+              <Ionicons
+                name="shield-checkmark"
+                size={22}
+                color="white"
+              />
+            }
+            label="My Info"
+            onPress={() => navigation.navigate("MyHealthInfo")}
+          />
+
+          <SquareAction
+            color="#7C3AED"
+            icon={
+              <Ionicons
+                name="document-text-outline"
+                size={22}
+                color="white"
+              />
+            }
+            label="Summary"
+            onPress={() => navigation.navigate("Summary")}
+          />
+
+          <SquareAction
+            color="#0284C7"
+            icon={
+              <Ionicons
+                name="play-circle"
+                size={22}
+                color="white"
+              />
+            }
+            label="Learn"
+            onPress={() => navigation.navigate("Learn")}
+          />
+        </View>
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
+
+      {/* Shop Modal */}
+      <Modal
+        visible={showShop}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🛍️ Item Shop</Text>
+              <Pressable onPress={() => setShowShop(false)}>
+                <Ionicons name="close" size={28} color="#0F172A" />
+              </Pressable>
+            </View>
+
+            <View style={styles.pointsDisplay}>
+              <Text style={styles.pointsDisplayText}>
+                Your Points: ⚡{userPoints}
+              </Text>
+            </View>
+
+            <ScrollView style={styles.shopGrid}>
+              {SHOP_ITEMS.map((item) => (
+                <View key={item.id} style={styles.shopItem}>
+                  <Image 
+                    source={item.image} 
+                    style={styles.shopItemImage}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.shopItemInfo}>
+                    <Text style={styles.shopItemName}>{item.name}</Text>
+                    <Text style={styles.shopItemCost}>⚡{item.cost} pts</Text>
+                  </View>
+                  <Pressable
+                    style={[
+                      styles.buyBtn,
+                      ownedItems.includes(item.id) && styles.ownedBtn
+                    ]}
+                    onPress={() => handleBuyItem(item)}
+                    disabled={ownedItems.includes(item.id)}
+                  >
+                    <Text style={styles.buyBtnText}>
+                      {ownedItems.includes(item.id) ? 'Owned' : 'Buy'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Closet Modal */}
+      <Modal
+        visible={showCloset}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>👕 Your Closet</Text>
+              <Pressable onPress={() => setShowCloset(false)}>
+                <Ionicons name="close" size={28} color="#0F172A" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.shopGrid}>
+              {ownedItems.length === 0 ? (
+                <View style={styles.emptyCloset}>
+                  <Text style={styles.emptyText}>
+                    Your closet is empty! Buy items from the shop.
+                  </Text>
+                </View>
+              ) : (
+                ownedItems.map((itemId) => {
+                  const item = SHOP_ITEMS.find(i => i.id === itemId);
+                  if (!item) return null;
+                  
+                  return (
+                    <View key={item.id} style={styles.shopItem}>
+                      <Image 
+                        source={item.image} 
+                        style={styles.shopItemImage}
+                        resizeMode="contain"
+                      />
+                      <View style={styles.shopItemInfo}>
+                        <Text style={styles.shopItemName}>{item.name}</Text>
+                        {currentOutfit === item.id && (
+                          <Text style={styles.equippedText}>✓ Equipped</Text>
+                        )}
+                      </View>
+                      <Pressable
+                        style={[
+                          styles.buyBtn,
+                          currentOutfit === item.id && styles.equippedBtn
+                        ]}
+                        onPress={() => handleWearItem(item.id)}
+                        disabled={currentOutfit === item.id}
+                      >
+                        <Text style={styles.buyBtnText}>
+                          {currentOutfit === item.id ? 'Wearing' : 'Wear'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+// Little row for appointment info
+function Row({ icon, text }: { icon: any; text: string }) {
+  return (
+    <View style={styles.apptRow}>
+      <Ionicons
+        name={icon}
+        size={18}
+        color="#2563EB"
+      />
+      <Text style={styles.apptText}>{text}</Text>
+    </View>
+  );
+}
+
+// Square quick action button
+function SquareAction({
   color,
   icon,
   label,
@@ -63,273 +554,59 @@ const SquareAction = ({
   icon: React.ReactNode;
   label: string;
   onPress: () => void;
-}) => (
-  <Pressable onPress={onPress} style={[styles.square, { backgroundColor: color }]}>
-    <View style={{ alignItems: "center" }}>{icon}</View>
-    <Text style={styles.squareLabel}>{label}</Text>
-  </Pressable>
-);
-
-export default function Home({ navigation, route }: HomeProps) {
-  // ----- Demo data (replace with real data later) -----
-  const points = 120;
-  const weeklyProgress = 0.65;
-  const needsAssessment = route?.params?.needsAssessment ?? false;
-
-  const nextAppt: NextAppt = {
-    dateLabel: "Tuesday, Oct 29",
-    timeLabel: "3:00 PM",
-    provider: "Dr. Nguyen",
-    reason: "Check-up",
-  };
-
-  // Base todos
-  let todos: TodoItem[] = [
-    {
-      id: "t1",
-      type: "assessment",
-      title: "Insurance Basics Assessment",
-      etaMin: 3,
-      status: "todo",
-    },
-    {
-      id: "t2",
-      type: "goal",
-      title: "Carry insurance card daily",
-      status: "doing",
-    },
-  ];
-
-  // If the user hasn’t taken the starter assessment, inject it to the top
-  if (needsAssessment) {
-    todos = [
-      {
-        id: "assess-starter",
-        type: "assessment",
-        title: "Starter Assessment (20 questions)",
-        etaMin: 6,
-        status: "todo",
-      },
-      ...todos,
-    ];
-  }
-
-  // ----- Computed -----
-  const progressPct = Math.round(weeklyProgress * 100);
-  const todoCount = useMemo(
-    () => todos.filter((t) => t.status !== "done").length,
-    [todos]
-  );
-
-  // ----- Navigation helpers -----
-  const goAppointments = () => navigation.navigate("Appointments");
-  const goMyInfo = () => navigation.navigate("MyHealthInfo");
-  const goSummary = () => navigation.navigate("Summary");
-  const goLearn = () => navigation.navigate("Learn");
-  const goShop = () => navigation.navigate("Rewards");
-  const goAddVisit = () => navigation.navigate("Appointments", { add: true });
-
-  const startAssessment = (id: string) => {
-    // If it’s the starter assessment, send a flag so Assess screen knows what to load
-    const isStarter = id === "assess-starter";
-    navigation.navigate("Assess", { mode: isStarter ? "starter" : "module" });
-  };
-
+}) {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.petBadge}>
-              <Text style={{ fontSize: 12, color: "#0F172A", fontWeight: "700" }}>
-                L2
-              </Text>
-              <Text style={{ fontSize: 14 }}>🙂</Text>
-            </View>
-            <View>
-              <Text style={styles.hello}>Hey there! 👋</Text>
-              <Text style={styles.subtitle}>You're doing great</Text>
-            </View>
-          </View>
-
-          <View style={styles.pointsPill}>
-            <Text style={{ fontSize: 14 }}>⚡</Text>
-            <Text style={styles.pointsText}>{points}</Text>
-            <Text style={styles.pointsSub}>pts</Text>
-          </View>
-        </View>
-
-        {/* Needs assessment banner */}
-        {needsAssessment ? (
-          <Card style={{ backgroundColor: "#EEF2FF" }}>
-            <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-              <Ionicons name="alert-circle" size={20} color="#1D4ED8" />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: "800", color: "#1D4ED8" }}>
-                  Complete your starter assessment
-                </Text>
-                <Text style={{ color: "#1F2937", marginTop: 4 }}>
-                  Take a quick 20-question quiz to build your personalized plan.
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              style={[styles.primaryBtn, { marginTop: 12, backgroundColor: "#1D4ED8" }]}
-              onPress={() => startAssessment("assess-starter")}
-            >
-              <Text style={styles.primaryBtnText}>Start assessment →</Text>
-            </Pressable>
-          </Card>
-        ) : null}
-
-        {/* This Week */}
-        <Card>
-          <View style={styles.rowBetween}>
-            <View>
-              <Text style={styles.cardTitle}>This Week</Text>
-              <Text style={styles.muted}>Keep up the momentum!</Text>
-            </View>
-            <View style={styles.ring}>
-              <Text style={{ fontWeight: "700", color: "#2563EB" }}>
-                {progressPct}%
-              </Text>
-            </View>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressBar, { width: `${progressPct}%` }]} />
-          </View>
-        </Card>
-
-        {/* Coming Up */}
-        <Text style={styles.sectionTitle}>Coming Up</Text>
-        <Card>
-          <Text style={styles.cardSubtitle}>Next Appointment</Text>
-          <Row icon="calendar-outline" text={nextAppt.dateLabel} />
-          <Row icon="time-outline" text={nextAppt.timeLabel} />
-          <Row icon="person-outline" text={nextAppt.provider} />
-          <Text style={[styles.muted, { marginTop: 6 }]}>{nextAppt.reason}</Text>
-
-          <Pressable
-            style={[styles.primaryBtn, { marginTop: 14 }]}
-            onPress={goAppointments}
-          >
-            <Text style={styles.primaryBtnText}>Start Prep  →</Text>
-          </Pressable>
-        </Card>
-
-        {/* To-Do */}
-        <View style={styles.rowBetween}>
-          <Text style={styles.sectionTitle}>To-Do</Text>
-          <View style={styles.itemsPill}>
-            <Text style={{ color: "#065F46", fontWeight: "700" }}>
-              {todoCount} items
-            </Text>
-          </View>
-        </View>
-
-        {todos.map((t) => (
-          <Card key={t.id} style={{ paddingVertical: 14 }}>
-            <View style={styles.todoHeader}>
-              <View style={styles.radio} />
-              <View style={{ flex: 1 }}>
-                <View style={styles.todoLine1}>
-                  <Chip
-                    label={t.type === "assessment" ? "Assessment" : "Goal"}
-                    color={t.type === "assessment" ? "#E0ECFF" : "#DCFCE7"}
-                  />
-                  {t.etaMin ? (
-                    <View style={styles.eta}>
-                      <Ionicons name="time-outline" size={14} color="#64748B" />
-                      <Text style={styles.etaText}>{t.etaMin} min</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={styles.todoTitle}>{t.title}</Text>
-              </View>
-
-              {t.type === "assessment" ? (
-                <Pressable
-                  style={styles.startBtn}
-                  onPress={() => startAssessment(t.id)}
-                >
-                  <Text style={styles.startBtnText}>Start</Text>
-                </Pressable>
-              ) : (
-                <Pressable style={styles.continueBtn} onPress={goLearn}>
-                  <Text style={styles.startBtnText}>Continue</Text>
-                </Pressable>
-              )}
-            </View>
-          </Card>
-        ))}
-
-        {/* Quick Actions */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.quickGrid}>
-          <SquareAction
-            color="#2563EB"
-            icon={<MaterialIcons name="event-available" size={22} color="white" />}
-            label="Add Visit"
-            onPress={goAddVisit}
-          />
-          <SquareAction
-            color="#10B981"
-            icon={<Ionicons name="shield-checkmark" size={22} color="white" />}
-            label="My Info"
-            onPress={goMyInfo}
-          />
-          <SquareAction
-            color="#7C3AED"
-            icon={<Ionicons name="print-outline" size={22} color="white" />}
-            label="Print Summary"
-            onPress={goSummary}
-          />
-          <SquareAction
-            color="#0284C7"
-            icon={<FontAwesome5 name="play" size={18} color="white" />}
-            label="Watch & Learn"
-            onPress={goLearn}
-          />
-        </View>
-
-        {/* Shop Banner */}
-        <View style={styles.shopCard}>
-          <Text style={styles.shopTitle}>Visit the Shop!</Text>
-          <Text style={styles.shopSub}>
-            You have {points} points to spend on cool stuff
-          </Text>
-          <Pressable style={styles.shopBtn} onPress={goShop}>
-            <Text style={styles.shopBtnText}>Shop Now</Text>
-          </Pressable>
-        </View>
-
-        <View style={{ height: 24 }} />
-      </ScrollView>
-    </SafeAreaView>
+    <Pressable
+      onPress={onPress}
+      style={[styles.square, { backgroundColor: color }]}
+    >
+      <View style={{ alignItems: "center" }}>{icon}</View>
+      <Text style={styles.squareLabel}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 16 },
+  loadingWrap: {
+    flex: 1,
+    backgroundColor: "#F6F8FB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  petBadge: {
-    backgroundColor: "#E0F2FE",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 12,
   },
-  hello: { fontSize: 22, fontWeight: "800", color: "#0F172A" },
-  subtitle: { color: "#64748B", marginTop: 2 },
+  avatarBubble: {
+    backgroundColor: "#E0F2FE",
+    borderRadius: 24,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  hello: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  subtitle: {
+    color: "#64748B",
+    marginTop: 2,
+  },
   pointsPill: {
     backgroundColor: "#EEF2FF",
     paddingHorizontal: 12,
@@ -339,8 +616,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  pointsText: { fontWeight: "800", color: "#0F172A" },
-  pointsSub: { color: "#64748B", marginLeft: 2 },
+  pointsText: {
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  pointsSub: {
+    color: "#64748B",
+    marginLeft: 2,
+    fontSize: 12,
+  },
+
+  assessmentBanner: {
+    backgroundColor: "#DBEAFE",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#93C5FD",
+  },
+  bannerTitle: {
+    fontWeight: "800",
+    color: "#1E3A8A",
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  bannerSub: {
+    color: "#1E40AF",
+    fontSize: 13,
+  },
 
   card: {
     backgroundColor: "white",
@@ -357,7 +663,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  cardTitle: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
   cardSubtitle: {
     fontSize: 14,
     fontWeight: "700",
@@ -365,6 +675,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   muted: { color: "#64748B" },
+
   ring: {
     width: 48,
     height: 48,
@@ -374,6 +685,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#BFDBFE",
   },
+  ringText: {
+    fontWeight: "700",
+    color: "#2563EB",
+  },
   progressTrack: {
     height: 8,
     backgroundColor: "#E5E7EB",
@@ -381,7 +696,52 @@ const styles = StyleSheet.create({
     marginTop: 12,
     overflow: "hidden",
   },
-  progressBar: { height: "100%", backgroundColor: "#2563EB" },
+  progressBar: {
+    height: "100%",
+    backgroundColor: "#2563EB",
+  },
+
+  caterpillarContainer: {
+    alignItems: "center",
+    marginVertical: 16,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#1F2937",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  caterpillarControls: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  controlBtn: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  controlBtnText: {
+    color: "#1D4ED8",
+    fontWeight: "700",
+  },
+  caterpillarImage: {
+    width: 150,
+    height: 150,
+  },
+  removeOutfitBtn: {
+    marginTop: 12,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  removeOutfitText: {
+    color: "#DC2626",
+    fontWeight: "700",
+  },
 
   sectionTitle: {
     fontSize: 18,
@@ -389,15 +749,26 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     marginVertical: 6,
   },
-  apptRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  apptText: { color: "#111827", fontWeight: "600" },
+  apptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  apptText: {
+    color: "#111827",
+    fontWeight: "600",
+  },
   primaryBtn: {
     backgroundColor: "#2563EB",
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
   },
-  primaryBtnText: { color: "white", fontWeight: "800" },
+  primaryBtnText: {
+    color: "white",
+    fontWeight: "800",
+  },
 
   itemsPill: {
     backgroundColor: "#ECFDF5",
@@ -405,8 +776,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
-  todoHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  radio: {
+  itemsPillText: {
+    color: "#065F46",
+    fontWeight: "700",
+  },
+  todoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  radioEmpty: {
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -419,24 +798,31 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 6,
   },
-  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14 },
-  chipText: { color: "#1F2937", fontWeight: "700", fontSize: 12 },
-  eta: { flexDirection: "row", alignItems: "center", gap: 4 },
-  etaText: { color: "#64748B", fontSize: 12 },
-  todoTitle: { fontWeight: "700", color: "#0F172A" },
+  chip: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+  },
+  chipText: {
+    color: "#065F46",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  todoTitle: {
+    fontWeight: "700",
+    color: "#0F172A",
+  },
   startBtn: {
     backgroundColor: "#EFF6FF",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
   },
-  continueBtn: {
-    backgroundColor: "#F0FDF4",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+  startBtnText: {
+    color: "#1D4ED8",
+    fontWeight: "700",
   },
-  startBtnText: { color: "#1D4ED8", fontWeight: "700" },
 
   quickGrid: {
     flexDirection: "row",
@@ -451,22 +837,104 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  squareLabel: { color: "white", fontWeight: "700", textAlign: "center" },
+  squareLabel: {
+    color: "white",
+    fontWeight: "700",
+    textAlign: "center",
+  },
 
-  shopCard: {
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: "#6366F1",
-    overflow: "hidden",
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  shopTitle: { color: "white", fontSize: 18, fontWeight: "800", marginBottom: 6 },
-  shopSub: { color: "white", opacity: 0.9, marginBottom: 12 },
-  shopBtn: {
+  modalContent: {
     backgroundColor: "white",
-    borderRadius: 24,
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "80%",
   },
-  shopBtnText: { color: "#3730A3", fontWeight: "800" },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  pointsDisplay: {
+    backgroundColor: "#EEF2FF",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  pointsDisplayText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    textAlign: "center",
+  },
+  shopGrid: {
+    flex: 1,
+  },
+  shopItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  shopItemImage: {
+    width: 60,
+    height: 60,
+  },
+  shopItemInfo: {
+    flex: 1,
+  },
+  shopItemName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  shopItemCost: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  buyBtn: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  buyBtnText: {
+    color: "white",
+    fontWeight: "700",
+  },
+  ownedBtn: {
+    backgroundColor: "#10B981",
+  },
+  equippedBtn: {
+    backgroundColor: "#7C3AED",
+  },
+  equippedText: {
+    color: "#10B981",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  emptyCloset: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#64748B",
+    textAlign: "center",
+  },
 });

@@ -2,148 +2,197 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const USER_KEY = "ysma:user";
-const ASSESS_KEY = "ysma:assessmentDone";
 
-export type User = {
+export type PhaseId = 1 | 2 | 3 | 4 | 5;
+
+export type LearningGoal = {
+  id: string;        // "p2-3"
+  label: string;     // "Know my allergies"
+  done: boolean;
+};
+
+export type UserProfile = {
   id: string;
   name: string;
   email: string;
+  age: number;
 
-  // --- new fields for onboarding / assessment tracking ---
-  hasCompletedAssessment?: boolean; // did they pass the first assessment?
-  lastAssessmentScore?: number;     // most recent % score
-  lastAssessmentAt?: string;        // ISO timestamp string like "2025-10-29T17:22:00Z"
+  // NEW: store pw locally for now (not secure, but fine for prototype)
+  password: string;
+
+  phase: PhaseId;                // 1-5
+  plan: LearningGoal[];          // personalized checklist
+
+  hasCompletedAssessment: boolean;
+  lastAssessmentScore: number | null;
+  lastAssessmentAt: string | null;
 };
 
-// read the current user object from storage
-export async function getCurrentUser(): Promise<User | null> {
+// pick phase based on age ranges from the clinic roadmap
+function pickPhaseFromAge(age: number): PhaseId {
+  if (age <= 15) return 1;        // 14-15
+  if (age <= 17) return 2;        // 16-17
+  if (age <= 19) return 3;        // 18-19
+  if (age <= 22) return 4;        // 20-22
+  return 5;                       // older / guardianship planning
+}
+
+// these are the “what you should know at this age” bullets
+// pulled from the phase expectations
+const PHASE_TOPICS: Record<PhaseId, string[]> = {
+  1: [
+    "I can explain my condition and symptoms.",
+    "I know my allergies.",
+    "I know my medicines and what they do.",
+    "I understand that I can talk alone with my doctor.",
+    "I spend part of my visit without my parent in the room.",
+  ],
+  2: [
+    "I can use the patient portal / MyChart.",
+    "I know med side effects.",
+    "I remember to take meds on time.",
+    "I know doses and how often I take them.",
+    "I can give my own shots (if needed).",
+    "I know what changes at age 18 for privacy.",
+    "I can talk about driving / getting myself places.",
+    "I can talk about birth control / pregnancy safety if I need to.",
+  ],
+  3: [
+    "I can call for refills myself.",
+    "I can make and cancel my own appointments.",
+    "I know my insurance situation.",
+    "I know my family medical history.",
+    "I know where to go when clinic is closed.",
+    "I have/will have an adult primary care doctor.",
+    "I can plan my own rides to clinic.",
+  ],
+  4: [
+    "I have or am setting up an adult specialist.",
+    "I handle my own insurance or benefits.",
+    "I can get meds even if they require special approval.",
+  ],
+  5: [
+    "I have adult care/decision support set up if I need a guardian.",
+  ],
+};
+
+// turn phase into checklist objects
+function buildPlanForPhase(phase: PhaseId): LearningGoal[] {
+  return PHASE_TOPICS[phase].map((label, i) => ({
+    id: `p${phase}-${i}`,
+    label,
+    done: false,
+  }));
+}
+
+// ---------------- core storage helpers ----------------
+
+export async function getCurrentUser(): Promise<UserProfile | null> {
   const raw = await AsyncStorage.getItem(USER_KEY);
-  return raw ? (JSON.parse(raw) as User) : null;
+  return raw ? (JSON.parse(raw) as UserProfile) : null;
 }
 
-// helper to write a full user object back
-async function saveUser(user: User) {
-  await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-}
+// LOW-LEVEL create and save user to storage
+async function createAccountInternal(
+  name: string,
+  email: string,
+  age: number,
+  password: string
+): Promise<UserProfile> {
+  const phase = pickPhaseFromAge(age);
 
-// create new account
-export async function signUp(name: string, email: string, _pw: string) {
-  // in real app: call backend. here: save locally.
-  const user: User = {
+  const profile: UserProfile = {
     id: `u_${Date.now()}`,
-    name,
-    email: email.toLowerCase(),
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    age,
+    password, // store plain text JUST for prototype (not production-safe)
+
+    phase,
+    plan: buildPlanForPhase(phase),
+
     hasCompletedAssessment: false,
+    lastAssessmentScore: null,
+    lastAssessmentAt: null,
   };
 
-  await saveUser(user);
-  // explicitly mark assessment incomplete
-  await AsyncStorage.setItem(ASSESS_KEY, JSON.stringify(false));
-  return user;
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(profile));
+  return profile;
 }
 
-// log in / or auto-create if doesn't exist
-export async function signIn(email: string, _pw: string) {
-  // try to get whoever's already logged in
+// HIGH-LEVEL sign up (this is what the UI should call)
+export async function signUp(
+  name: string,
+  age: number,
+  email: string,
+  password: string
+): Promise<{ ok: boolean; user?: UserProfile; error?: string }> {
   const existing = await getCurrentUser();
 
-  // if someone is stored and it's the same email, just "log them in"
-  if (existing && existing.email === email.toLowerCase()) {
-    return existing;
-  }
-
-  // otherwise create a lightweight user from email
-  const nameFromEmail = email.split("@")[0] || "Friend";
-
-  const newUser: User = {
-    id: `u_${Date.now()}`,
-    name: capitalize(nameFromEmail),
-    email: email.toLowerCase(),
-    hasCompletedAssessment: false,
-  };
-
-  await saveUser(newUser);
-  await AsyncStorage.setItem(ASSESS_KEY, JSON.stringify(false));
-
-  return newUser;
-}
-
-// log out (clear current user only)
-export async function signOut() {
-  await AsyncStorage.removeItem(USER_KEY);
-  // we could leave ASSESS_KEY alone or clear it, up to product decision
-  // await AsyncStorage.removeItem(ASSESS_KEY);
-}
-
-// check whether they've passed the assessment already
-export async function isAssessmentDone(): Promise<boolean> {
-  // prefer reading from user if available, fall back to ASSESS_KEY for backward compat
-  const u = await getCurrentUser();
-  if (u?.hasCompletedAssessment === true) return true;
-
-  const raw = await AsyncStorage.getItem(ASSESS_KEY);
-  return raw ? JSON.parse(raw) : false;
-}
-
-// set / override assessment completion
-export async function setAssessmentDone(done: boolean) {
-  // update both: legacy flag + user object
-  await AsyncStorage.setItem(ASSESS_KEY, JSON.stringify(done));
-
-  const u = await getCurrentUser();
-  if (u) {
-    const updated: User = {
-      ...u,
-      hasCompletedAssessment: done,
+  // if we already have a saved user AND the email matches,
+  // don't silently overwrite — tell them to log in instead
+  if (
+    existing &&
+    existing.email === email.trim().toLowerCase()
+  ) {
+    return {
+      ok: false,
+      error: "You already made an account. Please log in.",
     };
-    await saveUser(updated);
   }
+
+  const newUser = await createAccountInternal(
+    name,
+    email,
+    age,
+    password
+  );
+
+  return { ok: true, user: newUser };
 }
 
-// *** THIS is the missing piece that Assess.tsx is calling ***
-// merge partial fields into whatever user is saved now
-export async function updateCurrentUser(patch: Partial<User>) {
+// "log in": return the saved profile if email matches.
+// (Optional pw check: we can require matching password later)
+export async function signIn(
+  email: string,
+  password?: string
+): Promise<UserProfile | null> {
   const u = await getCurrentUser();
-  if (!u) {
-    // no user yet? create a placeholder so we don't crash
-    const newUser: User = {
-      id: `u_${Date.now()}`,
-      name: patch.name ?? "Friend",
-      email: patch.email ?? "unknown@example.com",
-      ...patch,
-    };
-    await saveUser(newUser);
+  if (!u) return null;
 
-    // keep ASSESS_KEY in sync if assessment-related data came in
-    if (patch.hasCompletedAssessment !== undefined) {
-      await AsyncStorage.setItem(
-        ASSESS_KEY,
-        JSON.stringify(patch.hasCompletedAssessment)
-      );
-    }
-    return newUser;
-  }
+  const matchesEmail = u.email === email.trim().toLowerCase();
+  if (!matchesEmail) return null;
 
-  // merge old and new
-  const updated: User = {
-    ...u,
-    ...patch,
-  };
+  // if you want to force password match, uncomment:
+  // if (password != null && u.password !== password) return null;
 
-  await saveUser(updated);
+  return u;
+}
 
-  // update ASSESS_KEY too if caller changed that flag
-  if (patch.hasCompletedAssessment !== undefined) {
-    await AsyncStorage.setItem(
-      ASSESS_KEY,
-      JSON.stringify(patch.hasCompletedAssessment)
-    );
-  }
-
+// patch the currently saved profile
+export async function updateCurrentUser(
+  patch: Partial<UserProfile>
+): Promise<UserProfile | null> {
+  const existing = await getCurrentUser();
+  if (!existing) return null;
+  const updated: UserProfile = { ...existing, ...patch };
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(updated));
   return updated;
 }
 
-// util
-function capitalize(s: string) {
-  return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+// allow a screen to save a new plan (or update done flags)
+export async function saveLearningPlan(
+  newPlan: LearningGoal[]
+): Promise<UserProfile | null> {
+  return await updateCurrentUser({ plan: newPlan });
+}
+
+// mark a single learning item done
+export async function markGoalDone(goalId: string) {
+  const u = await getCurrentUser();
+  if (!u) return;
+  const newPlan = u.plan.map((g) =>
+    g.id === goalId ? { ...g, done: true } : g
+  );
+  await saveLearningPlan(newPlan);
 }

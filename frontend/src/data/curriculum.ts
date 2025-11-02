@@ -1,271 +1,213 @@
 // frontend/src/data/curriculum.ts
+
+// --- Topic IDs -------------------------------------------------
 export type TopicId =
   | "insurance"
-  | "meds"
   | "appointments"
-  | "records"
-  | "rights"
-  | "payments";
+  | "meds"
+  | "selfAdvocacy";
 
-export type Choice = { id: string; label: string; correct?: boolean; weight?: number };
-
-export type Question = {
-  id: string;
-  topic: TopicId;
-  prompt: string;
-  choices: Choice[];
-};
-
-export type Module = {
-  id: string;             // same as topic for simplicity
-  title: string;
-  description: string;
-  lessons: { id: string; title: string }[];
-};
-
+// Friendly names for cards / headers / etc.
 export const TOPIC_TITLES: Record<TopicId, string> = {
-  insurance: "Insurance Basics",
+  insurance: "Insurance & Coverage",
+  appointments: "Appointments & Scheduling",
   meds: "Medications & Refills",
-  appointments: "Appointments & Prep",
-  records: "My Health Records",
-  rights: "My Rights & Privacy",
-  payments: "Bills & Payments",
+  selfAdvocacy: "Speaking Up / Self-Advocacy",
 };
 
-// 20 questions across topics (sample; add more later)
-export const ONBOARDING_QUESTIONS: Question[] = [
-  {
-    id: "q1",
-    topic: "insurance",
-    prompt: "What is a 'copay'?",
-    choices: [
-      { id: "a", label: "Money you pay each visit", correct: true },
-      { id: "b", label: "Your monthly premium" },
-      { id: "c", label: "A type of doctor" },
-      { id: "d", label: "A snack" },
-    ],
-  },
-  {
-    id: "q2",
-    topic: "insurance",
-    prompt: "Where on the card is your Member ID usually found?",
-    choices: [
-      { id: "a", label: "Front of card, labeled 'Member ID'", correct: true },
-      { id: "b", label: "Back, near the barcode" },
-      { id: "c", label: "It’s your birthday" },
-      { id: "d", label: "There is no Member ID" },
-    ],
-  },
-  {
-    id: "q3",
-    topic: "meds",
-    prompt: "If you miss a dose, what should you do first?",
-    choices: [
-      { id: "a", label: "Double the next dose" },
-      { id: "b", label: "Ask pharmacist/doctor instructions", correct: true },
-      { id: "c", label: "Stop the med completely" },
-      { id: "d", label: "Panic" },
-    ],
-  },
-  {
-    id: "q4",
-    topic: "meds",
-    prompt: "Who can help set up automatic refills?",
-    choices: [
-      { id: "a", label: "Your pharmacist", correct: true },
-      { id: "b", label: "Your gym coach" },
-      { id: "c", label: "School principal" },
-      { id: "d", label: "No one" },
-    ],
-  },
-  {
-    id: "q5",
-    topic: "appointments",
-    prompt: "Before an appointment, what’s most helpful?",
-    choices: [
-      { id: "a", label: "Bring questions & ID/insurance card", correct: true },
-      { id: "b", label: "Skip eating for 3 days" },
-      { id: "c", label: "Only bring a friend" },
-      { id: "d", label: "Arrive exactly at time" },
-    ],
-  },
-  {
-    id: "q6",
-    topic: "appointments",
-    prompt: "Where can you see upcoming visits?",
-    choices: [
-      { id: "a", label: "The portal / your calendar", correct: true },
-      { id: "b", label: "On TV" },
-      { id: "c", label: "At the grocery store" },
-      { id: "d", label: "Nowhere" },
-    ],
-  },
-  {
-    id: "q7",
-    topic: "records",
-    prompt: "What is an immunization record?",
-    choices: [
-      { id: "a", label: "List of allergies" },
-      { id: "b", label: "Shots you received", correct: true },
-      { id: "c", label: "Doctor’s lunch menu" },
-      { id: "d", label: "Payment history" },
-    ],
-  },
-  {
-    id: "q8",
-    topic: "records",
-    prompt: "Where do you usually download visit summaries?",
-    choices: [
-      { id: "a", label: "Patient portal documents", correct: true },
-      { id: "b", label: "From the parking lot" },
-      { id: "c", label: "From the TV remote" },
-      { id: "d", label: "You can’t" },
-    ],
-  },
-  {
-    id: "q9",
-    topic: "rights",
-    prompt: "HIPAA helps protect…",
-    choices: [
-      { id: "a", label: "Your health privacy", correct: true },
-      { id: "b", label: "Doctor schedules" },
-      { id: "c", label: "Sports scores" },
-      { id: "d", label: "Snacks" },
-    ],
-  },
-  {
-    id: "q10",
-    topic: "rights",
-    prompt: "If you’re 18+, you can…",
-    choices: [
-      { id: "a", label: "Manage your own care & records", correct: true },
-      { id: "b", label: "Ban doctors forever" },
-      { id: "c", label: "Edit your height" },
-      { id: "d", label: "Sell the clinic" },
-    ],
-  },
-  // Add more so you reach 20; duplicating topics is fine for now:
-  { id: "q11", topic: "payments", prompt: "A bill shows…", choices: [
-      { id: "a", label: "Services & amounts you owe", correct: true },
-      { id: "b", label: "Doctor’s favorite color" },
-      { id: "c", label: "Friend list" },
-      { id: "d", label: "Memes" },
-    ]},
-  { id: "q12", topic: "payments", prompt: "Who do you call for a billing question?", choices: [
-      { id: "a", label: "Billing office/number on bill", correct: true },
-      { id: "b", label: "911" },
-      { id: "c", label: "Pizza place" },
-      { id: "d", label: "No one" },
-    ]},
-  { id: "q13", topic: "insurance", prompt: "Deductible means…", choices: [
-      { id: "a", label: "Amount you pay before insurance helps", correct: true },
-      { id: "b", label: "Your monthly fee" },
-      { id: "c", label: "The doctor’s tip" },
-      { id: "d", label: "Parking fee" },
-    ]},
-  { id: "q14", topic: "meds", prompt: "Medication label shows…", choices: [
-      { id: "a", label: "Dose & directions", correct: true },
-      { id: "b", label: "Video game score" },
-      { id: "c", label: "Random emojis" },
-      { id: "d", label: "Nothing important" },
-    ]},
-  { id: "q15", topic: "appointments", prompt: "If you’re late or can’t go…", choices: [
-      { id: "a", label: "Call to reschedule", correct: true },
-      { id: "b", label: "Ignore it" },
-      { id: "c", label: "Send a meme" },
-      { id: "d", label: "Go next year" },
-    ]},
-  { id: "q16", topic: "records", prompt: "To share records you can…", choices: [
-      { id: "a", label: "Request a release or share via portal", correct: true },
-      { id: "b", label: "Yell them out" },
-      { id: "c", label: "Mail a mystery box" },
-      { id: "d", label: "Not possible" },
-    ]},
-  { id: "q17", topic: "rights", prompt: "You can invite a caregiver by…", choices: [
-      { id: "a", label: "Adding proxy access in portal", correct: true },
-      { id: "b", label: "Giving them your password" },
-      { id: "c", label: "Nothing works" },
-      { id: "d", label: "A secret handshake" },
-    ]},
-  { id: "q18", topic: "payments", prompt: "Payment plan is…", choices: [
-      { id: "a", label: "Paying a bill over time", correct: true },
-      { id: "b", label: "A party plan" },
-      { id: "c", label: "A diet" },
-      { id: "d", label: "A meme" },
-    ]},
-  { id: "q19", topic: "insurance", prompt: "Prior authorization is…", choices: [
-      { id: "a", label: "Insurance approval before service", correct: true },
-      { id: "b", label: "Your dad’s signature" },
-      { id: "c", label: "Snack approval" },
-      { id: "d", label: "Spam" },
-    ]},
-  { id: "q20", topic: "meds", prompt: "Keep meds safe by…", choices: [
-      { id: "a", label: "Storing as labeled; don’t share", correct: true },
-      { id: "b", label: "Sharing with friends" },
-      { id: "c", label: "Leaving in the car heat" },
-      { id: "d", label: "Guessing doses" },
-    ]},
-];
+// --- Lesson modules -------------------------------------------
+// Each lesson is a thing the kid can tap, read, and mark done.
+export interface Lesson {
+  id: string;
+  title: string;
+  body: string;
+}
 
-export const MODULES: Module[] = [
+export interface ModuleDef {
+  id: TopicId;
+  title: string;
+  lessons: Lesson[];
+}
+
+export const MODULES: ModuleDef[] = [
   {
     id: "insurance",
     title: TOPIC_TITLES.insurance,
-    description: "Know your card, copays, deductibles & how to get help.",
     lessons: [
-      { id: "i1", title: "Your Insurance Card" },
-      { id: "i2", title: "Copays & Deductible" },
-      { id: "i3", title: "Finding Help" },
-    ],
-  },
-  {
-    id: "meds",
-    title: TOPIC_TITLES.meds,
-    description: "Take meds safely, manage refills, ask questions.",
-    lessons: [
-      { id: "m1", title: "Reading a Label" },
-      { id: "m2", title: "Missed Doses" },
-      { id: "m3", title: "Auto Refills" },
+      {
+        id: "ins_card",
+        title: "Do you have your insurance card?",
+        body:
+          "Why you need an insurance card, what info is on it, and when you show it.",
+      },
+      {
+        id: "copay_basics",
+        title: "What is a copay?",
+        body:
+          "Copay = the small amount you pay at the visit. We'll explain how to ask what it is.",
+      },
     ],
   },
   {
     id: "appointments",
     title: TOPIC_TITLES.appointments,
-    description: "Prep, questions, rescheduling, portals & calendars.",
     lessons: [
-      { id: "a1", title: "Before Your Visit" },
-      { id: "a2", title: "Questions to Ask" },
-      { id: "a3", title: "Rescheduling" },
+      {
+        id: "call_clinic",
+        title: "How to call the clinic",
+        body:
+          "Step-by-step for calling or messaging to schedule an appointment.",
+      },
+      {
+        id: "prep_visit",
+        title: "How to get ready for your visit",
+        body:
+          "Bring your questions, meds list, insurance card, ID, anything you’re worried about.",
+      },
     ],
   },
   {
-    id: "records",
-    title: TOPIC_TITLES.records,
-    description: "Immunizations, visit summaries, sharing with others.",
+    id: "meds",
+    title: TOPIC_TITLES.meds,
     lessons: [
-      { id: "r1", title: "What’s in My Record" },
-      { id: "r2", title: "Download a Summary" },
-      { id: "r3", title: "Sharing Safely" },
+      {
+        id: "know_meds",
+        title: "What meds do you take?",
+        body:
+          "Why it's important to know your meds, doses, and when you take them.",
+      },
+      {
+        id: "refills",
+        title: "How to ask for refills",
+        body:
+          "Who to call / message when you're almost out and what to tell them.",
+      },
     ],
   },
   {
-    id: "rights",
-    title: TOPIC_TITLES.rights,
-    description: "Privacy (HIPAA), consent, and caregiver proxy access.",
+    id: "selfAdvocacy",
+    title: TOPIC_TITLES.selfAdvocacy,
     lessons: [
-      { id: "x1", title: "Privacy & HIPAA" },
-      { id: "x2", title: "Turning 18" },
-      { id: "x3", title: "Proxy Access" },
+      {
+        id: "ask_questions",
+        title: "How to ask questions",
+        body:
+          "It's your body. You’re allowed to ask 'what does that mean' or 'can you say it simpler'.",
+      },
+      {
+        id: "privacy",
+        title: "Asking for private time",
+        body:
+          "You can ask the adult to step out so you can talk to the doctor alone.",
+      },
+    ],
+  },
+];
+
+// --- Question types -------------------------------------------
+
+export type Choice = {
+  id: string;
+  text: string;
+  correct?: boolean; // only used in scored quizzes
+};
+
+export type Question = {
+  id: string;
+  topic: TopicId;
+  text: string;
+  choices: Choice[];
+};
+
+// This is the FIRST quiz (the “starting assessment” / onboarding).
+// We don't hard-grade this, we use it to figure out which topics they need.
+export const ONBOARDING_QUESTIONS: Question[] = [
+  {
+    id: "q1",
+    topic: "insurance",
+    text: "Do you know how to use your insurance card at an appointment?",
+    choices: [
+      { id: "yes", text: "Yes, I know what to do" },
+      { id: "kinda", text: "Sort of / not sure" },
+      { id: "no", text: "No, I have no idea" },
     ],
   },
   {
-    id: "payments",
-    title: TOPIC_TITLES.payments,
-    description: "Bills, payment plans, who to call for help.",
-    lessons: [
-      { id: "p1", title: "Understanding a Bill" },
-      { id: "p2", title: "Payment Plans" },
-      { id: "p3", title: "Contact Billing" },
+    id: "q2",
+    topic: "appointments",
+    text: "Can you make or reschedule your own doctor visit?",
+    choices: [
+      { id: "yes", text: "Yes, I can do it myself" },
+      { id: "with_help", text: "I can if someone helps me" },
+      { id: "no", text: "No, someone else does it" },
+    ],
+  },
+  {
+    id: "q3",
+    topic: "meds",
+    text: "Do you know the names of any meds you take and when to take them?",
+    choices: [
+      { id: "all", text: "Yes, all of them" },
+      { id: "some", text: "I know some / kinda" },
+      { id: "none", text: "No, not really" },
+    ],
+  },
+  {
+    id: "q4",
+    topic: "selfAdvocacy",
+    text: "Can you ask the doctor questions or ask for privacy if you need it?",
+    choices: [
+      { id: "yes", text: "Yes I'm comfortable" },
+      { id: "nervous", text: "I'm nervous / not sure" },
+      { id: "no", text: "No, I wouldn't do that" },
+    ],
+  },
+];
+
+// This is the FINAL quiz. We DO grade this (needs >=80% or 75% etc).
+export const FINAL_QUESTIONS: Question[] = [
+  {
+    id: "f1",
+    topic: "insurance",
+    text: "When do you show your insurance card?",
+    choices: [
+      { id: "c1", text: "At the start of an appointment", correct: true },
+      { id: "c2", text: "Only if I feel sick", correct: false },
+      { id: "c3", text: "Never", correct: false },
+    ],
+  },
+  {
+    id: "f2",
+    topic: "appointments",
+    text: "What should you do if you need to reschedule?",
+    choices: [
+      { id: "c1", text: "Call or message the clinic", correct: true },
+      { id: "c2", text: "Just not show up", correct: false },
+      { id: "c3", text: "Wait and hope they call me", correct: false },
+    ],
+  },
+  {
+    id: "f3",
+    topic: "meds",
+    text: "You're almost out of a prescription. What do you do?",
+    choices: [
+      { id: "c1", text: "Nothing, it's fine", correct: false },
+      {
+        id: "c2",
+        text: "Ask for a refill (call / portal / pharmacy request)",
+        correct: true,
+      },
+      { id: "c3", text: "Start taking half doses", correct: false },
+    ],
+  },
+  {
+    id: "f4",
+    topic: "selfAdvocacy",
+    text: "If you don't understand something in your visit, what can you do?",
+    choices: [
+      { id: "c1", text: "Ask them to explain it in normal words", correct: true },
+      { id: "c2", text: "Stay quiet", correct: false },
+      { id: "c3", text: "Google it later and guess", correct: false },
     ],
   },
 ];
