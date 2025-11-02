@@ -6,7 +6,10 @@ import {
   Text,
   StyleSheet,
   Pressable,
+  Image,
+  Modal,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -15,13 +18,65 @@ import {
   UserProfile,
 } from "../storage/userStore";
 
+// Shop Items
+const SHOP_ITEMS = [
+  { id: 'ballerina', name: 'Ballerina Outfit', cost: 50, image: require('../../assets/ballerinaoutfit.png') },
+  { id: 'spider', name: 'Spider-Man Outfit', cost: 70, image: require('../../assets/spiderfit.png') },
+  { id: 'phone', name: 'Phone', cost: 30, image: require('../../assets/phone.png') },
+  { id: 'skateboard', name: 'Skateboard', cost: 45, image: require('../../assets/skateboard.png') },
+];
+
+// Caterpillar with accessories images
+const DRESSED_CATERPILLARS = {
+  ballerina: require('../../assets/ballerina_caterpillar.png'),
+  spider: require('../../assets/spiderpillar.png'),
+  phone: require('../../assets/phonepillar.png'),
+  skateboard: require('../../assets/skatepillar.png'),
+};
+
 export default function Home({ navigation }: any) {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [animFrame, setAnimFrame] = useState(0);
+  const [showShop, setShowShop] = useState(false);
+  const [showCloset, setShowCloset] = useState(false);
+  const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [currentOutfit, setCurrentOutfit] = useState<string | null>(null);
+  const [userPoints, setUserPoints] = useState(0);
+
+  // Caterpillar animation frames
+  const caterpillarFrames = [
+    require('../../assets/cater1.png'),
+    require('../../assets/cater2.png'),
+    require('../../assets/cater3.png'),
+  ];
+
+  // Get dressed caterpillar or regular
+  const getCurrentCaterpillar = () => {
+    if (currentOutfit && DRESSED_CATERPILLARS[currentOutfit as keyof typeof DRESSED_CATERPILLARS]) {
+      return DRESSED_CATERPILLARS[currentOutfit as keyof typeof DRESSED_CATERPILLARS];
+    }
+    return caterpillarFrames[animFrame];
+  };
+
+  // Animation effect - cycles through caterpillar frames (only when no outfit)
+  useEffect(() => {
+    if (currentOutfit) return; // Don't animate when wearing outfit
+    
+    const interval = setInterval(() => {
+      setAnimFrame((prev) => (prev + 1) % 3);
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, [currentOutfit]);
 
   // helper: load user from storage
   async function load() {
     const u = await getCurrentUser();
     setUser(u);
+    if (u) {
+      const goalsDone = u.plan.filter((g) => g.done).length;
+      setUserPoints(goalsDone * 10);
+    }
   }
 
   // load on mount
@@ -47,8 +102,40 @@ export default function Home({ navigation }: any) {
     }
   }, [user, navigation]);
 
+  const handleBuyItem = async (item: any) => {
+    if (userPoints >= item.cost && !ownedItems.includes(item.id)) {
+      const newPoints = userPoints - item.cost;
+      const newOwnedItems = [...ownedItems, item.id];
+      
+      setUserPoints(newPoints);
+      setOwnedItems(newOwnedItems);
+      
+      // Save to storage
+      await AsyncStorage.setItem('userPoints', newPoints.toString());
+      await AsyncStorage.setItem('ownedItems', JSON.stringify(newOwnedItems));
+      
+      alert(`You bought ${item.name}!`);
+    } else if (ownedItems.includes(item.id)) {
+      alert("You already own this item!");
+    } else {
+      alert("Not enough points!");
+    }
+  };
+
+  const handleWearItem = async (itemId: string) => {
+    setCurrentOutfit(itemId);
+    await AsyncStorage.setItem('currentOutfit', itemId);
+    setShowCloset(false);
+    alert("Outfit equipped!");
+  };
+
+  const handleRemoveOutfit = async () => {
+    setCurrentOutfit(null);
+    await AsyncStorage.removeItem('currentOutfit');
+    alert("Outfit removed!");
+  };
+
   if (!user) {
-    // basic loading state / or redirect
     return (
       <SafeAreaView style={styles.loadingWrap}>
         <Text style={{ color: "#64748B" }}>Loading…</Text>
@@ -64,13 +151,8 @@ export default function Home({ navigation }: any) {
       ? 0
       : Math.round((goalsDone / totalGoals) * 100);
 
-  // super basic “points” model:
-  const points = goalsDone * 10;
-
   // To-Do = goals that are NOT done yet
   const remainingGoals = user.plan.filter((g) => !g.done);
-
-  // show assessment banner if they haven't passed yet
   const needsAssessment = !user.hasCompletedAssessment;
 
   return (
@@ -89,14 +171,14 @@ export default function Home({ navigation }: any) {
                 Hey {user.name?.split(" ")[0] || "there"} 👋
               </Text>
               <Text style={styles.subtitle}>
-                You’re doing great
+                You're doing great
               </Text>
             </View>
           </View>
 
           <View style={styles.pointsPill}>
             <Text>⚡</Text>
-            <Text style={styles.pointsText}>{points}</Text>
+            <Text style={styles.pointsText}>{userPoints}</Text>
             <Text style={styles.pointsSub}>pts</Text>
           </View>
         </View>
@@ -112,8 +194,7 @@ export default function Home({ navigation }: any) {
                 Start your self-check
               </Text>
               <Text style={styles.bannerSub}>
-                Take a quick quiz so we know what
-                to help you learn.
+                Take a quick quiz so we know what to help you learn.
               </Text>
             </View>
             <Ionicons
@@ -123,7 +204,6 @@ export default function Home({ navigation }: any) {
             />
           </Pressable>
         ) : (
-          // otherwise show their weekly progress card
           <View style={styles.card}>
             <View style={styles.rowBetween}>
               <View>
@@ -150,7 +230,40 @@ export default function Home({ navigation }: any) {
           </View>
         )}
 
-        {/* Coming Up (placeholder for now) */}
+        {/* Animated Caterpillar with Shop/Closet buttons */}
+        <View style={styles.caterpillarContainer}>
+          <View style={styles.caterpillarControls}>
+            <Pressable
+              style={styles.controlBtn}
+              onPress={() => setShowShop(true)}
+            >
+              <Text style={styles.controlBtnText}>🛍️ Shop</Text>
+            </Pressable>
+            <Pressable
+              style={styles.controlBtn}
+              onPress={() => setShowCloset(true)}
+            >
+              <Text style={styles.controlBtnText}>👕 Closet</Text>
+            </Pressable>
+          </View>
+          
+          <Image 
+            source={getCurrentCaterpillar()} 
+            style={styles.caterpillarImage}
+            resizeMode="contain"
+          />
+          
+          {currentOutfit && (
+            <Pressable
+              style={styles.removeOutfitBtn}
+              onPress={handleRemoveOutfit}
+            >
+              <Text style={styles.removeOutfitText}>Remove Outfit</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Coming Up */}
         <Text style={styles.sectionTitle}>Coming Up</Text>
         <View style={styles.card}>
           <Text style={styles.cardSubtitle}>
@@ -190,7 +303,7 @@ export default function Home({ navigation }: any) {
         {remainingGoals.length === 0 ? (
           <View style={styles.card}>
             <Text style={styles.muted}>
-              You’ve finished everything in your plan 🎉
+              You've finished everything in your plan 🎉
             </Text>
             <Pressable
               style={[
@@ -297,27 +410,121 @@ export default function Home({ navigation }: any) {
           />
         </View>
 
-        {/* Shop teaser */}
-        <View style={styles.shopCard}>
-          <Text style={styles.shopTitle}>
-            Visit the Shop!
-          </Text>
-          <Text style={styles.shopSub}>
-            You have {points} points to spend on cool
-            stuff
-          </Text>
-          <Pressable
-            style={styles.shopBtn}
-            onPress={() => navigation.navigate("Rewards")}
-          >
-            <Text style={styles.shopBtnText}>
-              Shop Now
-            </Text>
-          </Pressable>
-        </View>
-
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Shop Modal */}
+      <Modal
+        visible={showShop}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🛍️ Item Shop</Text>
+              <Pressable onPress={() => setShowShop(false)}>
+                <Ionicons name="close" size={28} color="#0F172A" />
+              </Pressable>
+            </View>
+
+            <View style={styles.pointsDisplay}>
+              <Text style={styles.pointsDisplayText}>
+                Your Points: ⚡{userPoints}
+              </Text>
+            </View>
+
+            <ScrollView style={styles.shopGrid}>
+              {SHOP_ITEMS.map((item) => (
+                <View key={item.id} style={styles.shopItem}>
+                  <Image 
+                    source={item.image} 
+                    style={styles.shopItemImage}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.shopItemInfo}>
+                    <Text style={styles.shopItemName}>{item.name}</Text>
+                    <Text style={styles.shopItemCost}>⚡{item.cost} pts</Text>
+                  </View>
+                  <Pressable
+                    style={[
+                      styles.buyBtn,
+                      ownedItems.includes(item.id) && styles.ownedBtn
+                    ]}
+                    onPress={() => handleBuyItem(item)}
+                    disabled={ownedItems.includes(item.id)}
+                  >
+                    <Text style={styles.buyBtnText}>
+                      {ownedItems.includes(item.id) ? 'Owned' : 'Buy'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Closet Modal */}
+      <Modal
+        visible={showCloset}
+        animationType="slide"
+        transparent={true}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>👕 Your Closet</Text>
+              <Pressable onPress={() => setShowCloset(false)}>
+                <Ionicons name="close" size={28} color="#0F172A" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.shopGrid}>
+              {ownedItems.length === 0 ? (
+                <View style={styles.emptyCloset}>
+                  <Text style={styles.emptyText}>
+                    Your closet is empty! Buy items from the shop.
+                  </Text>
+                </View>
+              ) : (
+                ownedItems.map((itemId) => {
+                  const item = SHOP_ITEMS.find(i => i.id === itemId);
+                  if (!item) return null;
+                  
+                  return (
+                    <View key={item.id} style={styles.shopItem}>
+                      <Image 
+                        source={item.image} 
+                        style={styles.shopItemImage}
+                        resizeMode="contain"
+                      />
+                      <View style={styles.shopItemInfo}>
+                        <Text style={styles.shopItemName}>{item.name}</Text>
+                        {currentOutfit === item.id && (
+                          <Text style={styles.equippedText}>✓ Equipped</Text>
+                        )}
+                      </View>
+                      <Pressable
+                        style={[
+                          styles.buyBtn,
+                          currentOutfit === item.id && styles.equippedBtn
+                        ]}
+                        onPress={() => handleWearItem(item.id)}
+                        disabled={currentOutfit === item.id}
+                      >
+                        <Text style={styles.buyBtnText}>
+                          {currentOutfit === item.id ? 'Wearing' : 'Wear'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -494,6 +701,48 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
   },
 
+  caterpillarContainer: {
+    alignItems: "center",
+    marginVertical: 16,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#1F2937",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  caterpillarControls: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  controlBtn: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  controlBtnText: {
+    color: "#1D4ED8",
+    fontWeight: "700",
+  },
+  caterpillarImage: {
+    width: 150,
+    height: 150,
+  },
+  removeOutfitBtn: {
+    marginTop: 12,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  removeOutfitText: {
+    color: "#DC2626",
+    fontWeight: "700",
+  },
+
   sectionTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -594,33 +843,98 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  shopCard: {
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: "#6366F1",
-    overflow: "hidden",
-    marginTop: 8,
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  shopTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  shopSub: {
-    color: "white",
-    opacity: 0.9,
-    marginBottom: 12,
-  },
-  shopBtn: {
+  modalContent: {
     backgroundColor: "white",
-    borderRadius: 24,
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "80%",
   },
-  shopBtnText: {
-    color: "#3730A3",
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
     fontWeight: "800",
+    color: "#0F172A",
+  },
+  pointsDisplay: {
+    backgroundColor: "#EEF2FF",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  pointsDisplayText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    textAlign: "center",
+  },
+  shopGrid: {
+    flex: 1,
+  },
+  shopItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  shopItemImage: {
+    width: 60,
+    height: 60,
+  },
+  shopItemInfo: {
+    flex: 1,
+  },
+  shopItemName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  shopItemCost: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  buyBtn: {
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  buyBtnText: {
+    color: "white",
+    fontWeight: "700",
+  },
+  ownedBtn: {
+    backgroundColor: "#10B981",
+  },
+  equippedBtn: {
+    backgroundColor: "#7C3AED",
+  },
+  equippedText: {
+    color: "#10B981",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  emptyCloset: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#64748B",
+    textAlign: "center",
   },
 });
