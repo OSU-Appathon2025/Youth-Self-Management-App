@@ -1,168 +1,255 @@
 // frontend/src/screens/Auth.tsx
 import React, { useState } from "react";
 import {
+  SafeAreaView,
+  ScrollView,
   View,
   Text,
   TextInput,
   Pressable,
   StyleSheet,
-  Alert,
-  SafeAreaView,
-  ScrollView,
-  ActivityIndicator,
 } from "react-native";
-import { signIn, signUp } from "../storage/userStore";
+
+import {
+  signUp,
+  signIn,
+  getCurrentUser,
+} from "../storage/userStore";
 
 export default function Auth({ navigation }: any) {
-  const [mode, setMode] = useState<"login" | "signup">("signup");
-  const [name, setName] = useState("Taylor");
-  const [email, setEmail] = useState("you@example.com");
-  const [pw, setPw] = useState("password");
-  const [loading, setLoading] = useState(false);
+  // --- CREATE ACCOUNT FIELDS ---
+  const [newName, setNewName] = useState("");
+  const [newAge, setNewAge] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPw, setNewPw] = useState("");
 
-  const goHome = () =>
-    navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  // --- LOGIN FIELDS ---
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPw, setLoginPw] = useState("");
 
-  const onSubmit = async () => {
-    if (loading) return;
-    if (mode === "signup" && !name.trim()) {
-      Alert.alert("Please enter your name.");
+  // status / feedback
+  const [statusMsg, setStatusMsg] = useState("");
+
+  // create account handler
+  async function handleCreate() {
+    // basic validation
+    if (!newName.trim() || !newAge.trim() || !newEmail.trim() || !newPw.trim()) {
+      setStatusMsg("Please fill in name, age, email, and password.");
       return;
     }
-    if (!email.trim()) {
-      Alert.alert("Please enter your email.");
+
+    const ageNum = parseInt(newAge, 10);
+    if (Number.isNaN(ageNum) || ageNum <= 0) {
+      setStatusMsg("Age must be a number.");
       return;
     }
-    if (!pw) {
-      Alert.alert("Please enter your password.");
+
+    // call signUp from userStore
+    const res = await signUp(newName, ageNum, newEmail, newPw);
+
+    if (!res.ok) {
+      // ex: "You already made an account. Please log in."
+      setStatusMsg(res.error ?? "Could not create account.");
       return;
     }
-    try {
-      setLoading(true);
-      if (mode === "signup") {
-        await signUp(name.trim(), email.trim(), pw);
+
+    // success -> res.user is the profile we just saved
+    setStatusMsg("Account created 🎉");
+
+    // jump to Home and wipe nav history
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Home" }],
+    });
+  }
+
+  // log in handler
+  async function handleLogin() {
+    if (!loginEmail.trim()) {
+      setStatusMsg("Please enter your email.");
+      return;
+    }
+
+    // OPTIONAL: we also collected loginPw. We can check it in signIn later
+    const user = await signIn(loginEmail, loginPw);
+
+    if (!user) {
+      // two main cases:
+      // 1. there's no saved user at all
+      // 2. the email didn't match the saved user
+      // (we're not strictly password-checking yet unless you uncomment that code in userStore)
+      const existing = await getCurrentUser();
+      if (!existing) {
+        setStatusMsg("No account found. Try Create Account.");
       } else {
-        await signIn(email.trim(), pw);
+        setStatusMsg("That email doesn't match. Try again.");
       }
-      goHome();
-    } catch (e: any) {
-      Alert.alert("Oops", e?.message || "Something went wrong");
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    setStatusMsg(`Welcome back, ${user.name}!`);
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Home" }],
+    });
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      <ScrollView contentContainerStyle={s.container}>
-        <Text style={s.title}>Welcome</Text>
+      <ScrollView contentContainerStyle={styles.container}>
 
-        <View style={s.modeRow}>
-          <Pressable
-            onPress={() => setMode("login")}
-            style={[s.modeBtn, mode === "login" && s.modeActive]}
-          >
-            <Text style={[s.modeText, mode === "login" && s.modeTextActive]}>
-              Log in
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setMode("signup")}
-            style={[s.modeBtn, mode === "signup" && s.modeActive]}
-          >
-            <Text style={[s.modeText, mode === "signup" && s.modeTextActive]}>
-              Create account
-            </Text>
+        {/* CREATE ACCOUNT CARD */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Create account</Text>
+          <Text style={styles.cardDesc}>
+            We’ll use your age to build your learning plan.
+          </Text>
+
+          <TextInput
+            placeholder="Your name"
+            placeholderTextColor="#94A3B8"
+            value={newName}
+            onChangeText={setNewName}
+            style={styles.input}
+          />
+
+          <TextInput
+            placeholder="Your age"
+            placeholderTextColor="#94A3B8"
+            keyboardType="number-pad"
+            value={newAge}
+            onChangeText={setNewAge}
+            style={styles.input}
+          />
+
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#94A3B8"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={newEmail}
+            onChangeText={setNewEmail}
+            style={styles.input}
+          />
+
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#94A3B8"
+            secureTextEntry
+            value={newPw}
+            onChangeText={setNewPw}
+            style={styles.input}
+          />
+
+          <Pressable style={styles.primaryBtn} onPress={handleCreate}>
+            <Text style={styles.primaryBtnText}>Create account</Text>
           </Pressable>
         </View>
 
-        {mode === "signup" && (
-          <>
-            <Text style={s.label}>Name</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Taylor"
-              style={s.input}
-            />
-          </>
-        )}
-
-        <Text style={s.label}>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          style={s.input}
-        />
-
-        <Text style={s.label}>Password</Text>
-        <TextInput
-          value={pw}
-          onChangeText={setPw}
-          placeholder="••••••••"
-          secureTextEntry
-          style={s.input}
-        />
-
-        <Pressable onPress={onSubmit} style={s.primary} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={s.primaryText}>
-              {mode === "login" ? "Log in" : "Create account"}
-            </Text>
-          )}
-        </Pressable>
-
-        <Pressable onPress={goHome} style={s.subtle}>
-          <Text style={s.subtleText}>Skip for now →</Text>
-        </Pressable>
-
-        {mode === "signup" ? (
-          <Text style={s.note}>
-            You can take the assessment now or later. If you skip it, it’ll show
-            on your Home screen until you finish.
+        {/* LOGIN CARD */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Log in</Text>
+          <Text style={styles.cardDesc}>
+            Already made an account? Jump back in.
           </Text>
+
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#94A3B8"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={loginEmail}
+            onChangeText={setLoginEmail}
+            style={styles.input}
+          />
+
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#94A3B8"
+            secureTextEntry
+            value={loginPw}
+            onChangeText={setLoginPw}
+            style={styles.input}
+          />
+
+          <Pressable style={styles.secondaryBtn} onPress={handleLogin}>
+            <Text style={styles.secondaryBtnText}>Log in</Text>
+          </Pressable>
+        </View>
+
+        {statusMsg ? (
+          <Text style={styles.statusMsg}>{statusMsg}</Text>
         ) : null}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const s = StyleSheet.create({
-  container: { padding: 16, gap: 10 },
-  title: { fontSize: 28, fontWeight: "800", color: "#0F172A", marginBottom: 6 },
-  modeRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
-  modeBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "#E5E7EB",
-  },
-  modeActive: { backgroundColor: "#2563EB" },
-  modeText: { color: "#111827", fontWeight: "700" },
-  modeTextActive: { color: "white" },
-  label: { fontWeight: "700", color: "#334155", marginTop: 6 },
-  input: {
+const styles = StyleSheet.create({
+  container: { padding: 16, gap: 16 },
+
+  card: {
     backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 4,
+  },
+
+  cardDesc: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+    marginBottom: 16,
+  },
+
+  input: {
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    marginBottom: 12,
+    color: "#0F172A",
+    fontWeight: "600",
   },
-  primary: {
+
+  primaryBtn: {
     backgroundColor: "#2563EB",
-    paddingVertical: 12,
     borderRadius: 12,
+    paddingVertical: 12,
     alignItems: "center",
-    marginTop: 12,
   },
-  primaryText: { color: "white", fontWeight: "800" },
-  subtle: { alignItems: "center", marginTop: 8 },
-  subtleText: { color: "#2563EB", fontWeight: "700" },
-  note: { color: "#64748B", marginTop: 8 },
+  primaryBtnText: {
+    color: "white",
+    fontWeight: "800",
+  },
+
+  secondaryBtn: {
+    backgroundColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  secondaryBtnText: {
+    color: "#0F172A",
+    fontWeight: "800",
+  },
+
+  statusMsg: {
+    textAlign: "center",
+    fontWeight: "700",
+    color: "#1F2937",
+  },
 });
