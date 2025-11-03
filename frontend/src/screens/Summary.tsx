@@ -47,51 +47,52 @@ export default function Summary({ route, navigation }: any) {
       const data = result.data.healthInfo;
 
       // Map backend to display format
-      const loadedInsurance: Insurance = {
+      setInsurance({
         planName: data.insurance_provider || "",
         memberId: data.insurance_id || "",
         groupNumber: "",
         rxBin: "",
         rxPcn: "",
         phone: "",
-      };
+      });
 
-      const loadedProfile: Profile = {
+      // Parse health_summary for additional fields
+      const profile: Profile = {
         preferredPharmacy: "",
         allergies: data.allergies || "",
         medications: "",
       };
 
-      const loadedContact: Contact = {
-        name: "",
-        relation: "",
-        phone: "",
-      };
-
-      // Parse health_summary
       if (data.health_summary) {
         const parts = data.health_summary.split(" | ");
         parts.forEach((part) => {
-          if (part.startsWith("Group: ")) loadedInsurance.groupNumber = part.replace("Group: ", "");
-          else if (part.startsWith("RX BIN: ")) loadedInsurance.rxBin = part.replace("RX BIN: ", "");
-          else if (part.startsWith("RX PCN: ")) loadedInsurance.rxPcn = part.replace("RX PCN: ", "");
-          else if (part.startsWith("Phone: ")) loadedInsurance.phone = part.replace("Phone: ", "");
-          else if (part.startsWith("Pharmacy: ")) loadedProfile.preferredPharmacy = part.replace("Pharmacy: ", "");
-          else if (part.startsWith("Medications: ")) loadedProfile.medications = part.replace("Medications: ", "");
-          else if (part.startsWith("Emergency Contact: ")) {
-            const contactMatch = part.match(/Emergency Contact: (.+?) \((.+?)\) (.+)/);
-            if (contactMatch) {
-              loadedContact.name = contactMatch[1];
-              loadedContact.relation = contactMatch[2];
-              loadedContact.phone = contactMatch[3];
-            }
+          if (part.startsWith("Pharmacy: ")) {
+            profile.preferredPharmacy = part.replace("Pharmacy: ", "");
+          }
+          if (part.startsWith("Medications: ")) {
+            profile.medications = part.replace("Medications: ", "");
+          }
+          if (part.startsWith("Group: ")) {
+            setInsurance((prev) => ({ ...prev!, groupNumber: part.replace("Group: ", "") }));
+          }
+          if (part.startsWith("RX BIN: ")) {
+            setInsurance((prev) => ({ ...prev!, rxBin: part.replace("RX BIN: ", "") }));
+          }
+          if (part.startsWith("RX PCN: ")) {
+            setInsurance((prev) => ({ ...prev!, rxPcn: part.replace("RX PCN: ", "") }));
+          }
+          if (part.startsWith("Phone: ")) {
+            setInsurance((prev) => ({ ...prev!, phone: part.replace("Phone: ", "") }));
+          }
+          if (part.startsWith("Emergency Contact: ")) {
+            const contactInfo = part.replace("Emergency Contact: ", "");
+            const [name, relation, phone] = contactInfo.split(" - ");
+            setContact({ name: name || "", relation: relation || "", phone: phone || "" });
           }
         });
       }
 
-      setInsurance(loadedInsurance);
-      setProfile(loadedProfile);
-      setContact(loadedContact);
+      setProfile(profile);
     }
 
     setIsLoading(false);
@@ -101,7 +102,7 @@ export default function Summary({ route, navigation }: any) {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.print();
     } else {
-      alert("On device, we'll add Share/Print in a later step.");
+      Alert.alert("Print", "Print is only available on web.");
     }
   };
 
@@ -113,7 +114,7 @@ export default function Summary({ route, navigation }: any) {
         title: "My Health Summary",
       });
     } catch (error) {
-      Alert.alert("Error", "Could not share summary");
+      console.error("Error sharing:", error);
     }
   };
 
@@ -132,37 +133,52 @@ export default function Summary({ route, navigation }: any) {
     if (insurance?.phone) lines.push(`Phone: ${insurance.phone}`);
     lines.push(``);
 
-    lines.push(`--- EMERGENCY CONTACT ---`);
-    if (contact?.name) lines.push(`Name: ${contact.name}`);
-    if (contact?.relation) lines.push(`Relation: ${contact.relation}`);
-    if (contact?.phone) lines.push(`Phone: ${contact.phone}`);
-    lines.push(``);
+    if (contact?.name) {
+      lines.push(`--- EMERGENCY CONTACT ---`);
+      lines.push(`Name: ${contact.name}`);
+      lines.push(`Relation: ${contact.relation}`);
+      lines.push(`Phone: ${contact.phone}`);
+      lines.push(``);
+    }
 
-    lines.push(`--- HEALTH INFO ---`);
+    lines.push(`--- ALLERGIES & MEDICATIONS ---`);
     if (profile?.allergies) lines.push(`Allergies: ${profile.allergies}`);
     if (profile?.medications) lines.push(`Medications: ${profile.medications}`);
     if (profile?.preferredPharmacy) lines.push(`Preferred Pharmacy: ${profile.preferredPharmacy}`);
     lines.push(``);
 
-    lines.push(`Generated by Youth Self-Management App`);
     return lines.join("\n");
+  }
+
+  function rowVal(str: string | undefined) {
+    return str && str.trim() ? str : "—";
   }
 
   if (isLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={{ marginTop: 12, color: "#64748B" }}>Loading your health summary...</Text>
+        <Text style={{ marginTop: 12, color: "#64748B" }}>Loading health information...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Health Summary</Text>
-          <Pressable onPress={() => navigation.goBack()}><Text style={styles.link}>← Back</Text></Pressable>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* header with back */}
+        <View style={styles.headerRow}>
+          <Pressable
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={16} color="#2563EB" />
+            <Text style={styles.backText}>Back</Text>
+          </Pressable>
+
+          <Text style={styles.headerTitle}>Health Summary</Text>
+
+          <View style={{ width: 48 }} />
         </View>
 
         {userName ? (
@@ -172,27 +188,98 @@ export default function Summary({ route, navigation }: any) {
           </View>
         ) : null}
 
-        <Block title="Insurance">
-          <Line k="Plan Name" v={insurance?.planName} />
-          <Line k="Member ID" v={insurance?.memberId} />
-          <Line k="Group #" v={insurance?.groupNumber} />
-          <Line k="RX BIN" v={insurance?.rxBin} />
-          <Line k="RX PCN" v={insurance?.rxPcn} />
-          <Line k="Phone on card" v={insurance?.phone} />
-        </Block>
+        {/* INSURANCE */}
+        <View style={styles.block}>
+          <View style={styles.blockHeader}>
+            <Text style={styles.blockTitle}>Insurance</Text>
+          </View>
 
-        <Block title="Emergency Contact">
-          <Line k="Name" v={contact?.name} />
-          <Line k="Relation" v={contact?.relation} />
-          <Line k="Phone" v={contact?.phone} />
-        </Block>
+          <View style={styles.row}>
+            <Text style={styles.leftLabel}>Plan Name</Text>
+            <Text style={styles.rightVal}>{rowVal(insurance?.planName)}</Text>
+          </View>
 
-        <Block title="Allergies & Meds">
-          <Line k="Allergies" v={profile?.allergies} />
-          <Line k="Medications" v={profile?.medications} />
-          <Line k="Preferred Pharmacy" v={profile?.preferredPharmacy} />
-        </Block>
+          <View style={styles.row}>
+            <Text style={styles.leftLabel}>Member ID</Text>
+            <Text style={styles.rightVal}>{rowVal(insurance?.memberId)}</Text>
+          </View>
 
+          {insurance?.groupNumber ? (
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>Group #</Text>
+              <Text style={styles.rightVal}>{rowVal(insurance.groupNumber)}</Text>
+            </View>
+          ) : null}
+
+          {insurance?.rxBin ? (
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>RX BIN</Text>
+              <Text style={styles.rightVal}>{rowVal(insurance.rxBin)}</Text>
+            </View>
+          ) : null}
+
+          {insurance?.rxPcn ? (
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>RX PCN</Text>
+              <Text style={styles.rightVal}>{rowVal(insurance.rxPcn)}</Text>
+            </View>
+          ) : null}
+
+          {insurance?.phone ? (
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>Phone</Text>
+              <Text style={styles.rightVal}>{rowVal(insurance.phone)}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* EMERGENCY CONTACT */}
+        {contact?.name ? (
+          <View style={styles.block}>
+            <View style={styles.blockHeader}>
+              <Text style={styles.blockTitle}>Emergency Contact</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>Name</Text>
+              <Text style={styles.rightVal}>{rowVal(contact.name)}</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>Relation</Text>
+              <Text style={styles.rightVal}>{rowVal(contact.relation)}</Text>
+            </View>
+
+            <View style={styles.row}>
+              <Text style={styles.leftLabel}>Phone</Text>
+              <Text style={styles.rightVal}>{rowVal(contact.phone)}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ALLERGIES & MEDS */}
+        <View style={styles.block}>
+          <View style={styles.blockHeader}>
+            <Text style={styles.blockTitle}>Allergies & Medications</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.leftLabel}>Allergies</Text>
+            <Text style={styles.rightVal}>{rowVal(profile?.allergies)}</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.leftLabel}>Medications</Text>
+            <Text style={styles.rightVal}>{rowVal(profile?.medications)}</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.leftLabel}>Preferred Pharmacy</Text>
+            <Text style={styles.rightVal}>{rowVal(profile?.preferredPharmacy)}</Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
         <View style={styles.buttonRow}>
           {Platform.OS === "web" ? (
             <Pressable style={styles.actionBtn} onPress={onPrint}>
@@ -207,61 +294,81 @@ export default function Summary({ route, navigation }: any) {
           )}
         </View>
 
-        <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 8, textAlign: "center" }}>
-          {Platform.OS === "web"
-            ? "Click Print to save as PDF or print this summary"
-            : "Share this summary via text, email, or other apps"}
+        <Text style={styles.disclaimer}>
+          This summary can be printed or shared with your healthcare provider.
         </Text>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.block}>
-      <Text style={styles.blockTitle}>{title}</Text>
-      <View style={{ gap: 6 }}>{children}</View>
-    </View>
-  );
-}
-function Line({ k, v }: { k: string; v: string | undefined }) {
-  return (
-    <View style={styles.line}>
-      <Text style={styles.k}>{k}</Text>
-      <Text style={styles.v}>{v || "—"}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: "800", color: "#0F172A" },
-  link: { color: "#2563EB", fontWeight: "700" },
+  container: { padding: 16 },
+
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  backText: { color: "#2563EB", fontWeight: "700" },
+  headerTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A" },
 
   nameCard: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#EFF6FF",
     borderRadius: 12,
     padding: 14,
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
   },
   nameLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#6B7280",
+    color: "#1E40AF",
+    textTransform: "uppercase",
     marginBottom: 4,
   },
   nameValue: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#0F172A",
+    color: "#1E3A8A",
   },
 
-  block: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, padding: 14, marginBottom: 12 },
-  blockTitle: { fontWeight: "800", color: "#0F172A", marginBottom: 8 },
-  line: { flexDirection: "row", justifyContent: "space-between" },
-  k: { color: "#6B7280" },
-  v: { color: "#111827", fontWeight: "600", maxWidth: "60%" },
+  block: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  blockHeader: { marginBottom: 8 },
+  blockTitle: { fontWeight: "800", color: "#0F172A", fontSize: 16 },
+
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  leftLabel: { color: "#6B7280", fontWeight: "600", flex: 1 },
+  rightVal: {
+    color: "#111827",
+    fontWeight: "600",
+    flex: 1,
+    textAlign: "right",
+  },
 
   buttonRow: {
     marginTop: 10,
@@ -280,16 +387,12 @@ const styles = StyleSheet.create({
   },
   actionText: { color: "white", fontWeight: "800" },
 
-  // Legacy style for backwards compatibility
-  printBtn: {
-    marginTop: 10,
-    backgroundColor: "#2563EB",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
+  disclaimer: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    fontWeight: "600",
+    lineHeight: 16,
+    marginTop: 12,
   },
-  printText: { color: "white", fontWeight: "800" },
 });

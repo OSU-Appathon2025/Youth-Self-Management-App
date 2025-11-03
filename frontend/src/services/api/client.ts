@@ -4,7 +4,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // CHANGE THIS to your computer's local IP address
 // Find it by running 'ipconfig' in terminal (look for IPv4 Address)
 // OR use your backend deployment URL
-export const API_BASE_URL = "http://192.168.1.71:3000/api";
+export const API_BASE_URL = "http://localhost:3000/api";
+
 // For testing on physical device, use: "http://YOUR_IP_ADDRESS:3000/api"
 // Example: "http://192.168.1.100:3000/api"
 
