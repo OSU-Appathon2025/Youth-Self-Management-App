@@ -10,29 +10,31 @@ import {
   StyleSheet,
 } from "react-native";
 
+import BackHeader from "../components/BackHeader";
 import {
-  signUp,
+  createAccount,
   signIn,
   getCurrentUser,
 } from "../storage/userStore";
 
 export default function Auth({ navigation }: any) {
-  // --- CREATE ACCOUNT FIELDS ---
+  // CREATE ACCOUNT FIELDS
   const [newName, setNewName] = useState("");
   const [newAge, setNewAge] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPw, setNewPw] = useState("");
+  const [newPw, setNewPw] = useState(""); // visual only for now
 
-  // --- LOGIN FIELDS ---
+  // LOGIN FIELDS
   const [loginEmail, setLoginEmail] = useState("");
-  const [loginPw, setLoginPw] = useState("");
+  const [loginPw, setLoginPw] = useState(""); // visual only for now
 
-  // status / feedback
+  // status message
   const [statusMsg, setStatusMsg] = useState("");
 
-  // create account handler
+  // create account
   async function handleCreate() {
-    // basic validation
+    setStatusMsg(""); // clear old msg
+
     if (!newName.trim() || !newAge.trim() || !newEmail.trim() || !newPw.trim()) {
       setStatusMsg("Please fill in name, age, email, and password.");
       return;
@@ -44,50 +46,62 @@ export default function Auth({ navigation }: any) {
       return;
     }
 
-    // call signUp from userStore
-    const res = await signUp(newName, ageNum, newEmail, newPw);
-
-    if (!res.ok) {
-      // ex: "You already made an account. Please log in."
-      setStatusMsg(res.error ?? "Could not create account.");
+    // check if we already have a saved user AND the email matches
+    const already = await getCurrentUser();
+    if (
+      already &&
+      already.email === newEmail.trim().toLowerCase()
+    ) {
+      // user already exists
+      setStatusMsg("You already made an account. Please log in.");
       return;
     }
 
-    // success -> res.user is the profile we just saved
-    setStatusMsg("Account created 🎉");
+    // make brand new account and save it
+    const profile = await createAccount(
+      newName.trim(),
+      newEmail.trim().toLowerCase(),
+      ageNum
+    );
 
-    // jump to Home and wipe nav history
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Home" }],
-    });
+    // profile now has phase and plan
+    if (profile) {
+      setStatusMsg("Your account has been made 🎉");
+      // send them to Home and clear nav history so back won't come back here
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Home" }],
+      });
+    } else {
+      setStatusMsg("Could not create account.");
+    }
   }
 
-  // log in handler
+  // log in existing account
   async function handleLogin() {
+    setStatusMsg(""); // clear old msg
+
     if (!loginEmail.trim()) {
       setStatusMsg("Please enter your email.");
       return;
     }
 
-    // OPTIONAL: we also collected loginPw. We can check it in signIn later
-    const user = await signIn(loginEmail, loginPw);
+    // look up the current saved user
+    const profile = await signIn(loginEmail.trim().toLowerCase());
 
-    if (!user) {
-      // two main cases:
-      // 1. there's no saved user at all
-      // 2. the email didn't match the saved user
-      // (we're not strictly password-checking yet unless you uncomment that code in userStore)
+    if (!profile) {
+      // maybe there's nobody saved OR email didn't match
       const existing = await getCurrentUser();
       if (!existing) {
-        setStatusMsg("No account found. Try Create Account.");
+        setStatusMsg("No account found. Please create one first.");
       } else {
-        setStatusMsg("That email doesn't match. Try again.");
+        setStatusMsg("That email doesn't match the saved account.");
       }
       return;
     }
 
-    setStatusMsg(`Welcome back, ${user.name}!`);
+    // success
+    setStatusMsg(`Welcome back, ${profile.name}!`);
     navigation.reset({
       index: 0,
       routes: [{ name: "Home" }],
@@ -97,8 +111,10 @@ export default function Auth({ navigation }: any) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
+        {/* this now handles "back" correctly even if we started here */}
+        <BackHeader title="Account" navigation={navigation} />
 
-        {/* CREATE ACCOUNT CARD */}
+        {/* CREATE ACCOUNT */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Create account</Text>
           <Text style={styles.cardDesc}>
@@ -133,7 +149,7 @@ export default function Auth({ navigation }: any) {
           />
 
           <TextInput
-            placeholder="Password"
+            placeholder="Password (not enforced yet)"
             placeholderTextColor="#94A3B8"
             secureTextEntry
             value={newPw}
@@ -146,7 +162,7 @@ export default function Auth({ navigation }: any) {
           </Pressable>
         </View>
 
-        {/* LOGIN CARD */}
+        {/* LOGIN */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Log in</Text>
           <Text style={styles.cardDesc}>
@@ -223,6 +239,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: "#0F172A",
     fontWeight: "600",
+    backgroundColor: "white",
   },
 
   primaryBtn: {

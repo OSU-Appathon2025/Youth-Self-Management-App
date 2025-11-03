@@ -1,265 +1,148 @@
-import React, { useEffect, useState, useCallback } from "react";
+// frontend/src/screens/Plan.tsx
+import React, { useEffect, useState } from "react";
 import {
-  SafeAreaView,
-  ScrollView,
   View,
   Text,
-  StyleSheet,
   Pressable,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { getPlan } from "../storage/progressStore";
 
-import {
-  getCurrentUser,
-  markGoalDone,
-  UserProfile,
-  LearningGoal,
-} from "../storage/userStore";
+type PlanShape = {
+  topics?: {
+    [topicId: string]: {
+      quiz?: boolean; // true when TopicDetails marks it done
+    };
+  };
+};
+
+const TOPICS: { id: string; label: string; subtitle?: string }[] = [
+  { id: "insurance_card", label: "I can show my insurance card if someone asks." },
+  { id: "meds", label: "I know my medicines and what they do." },
+  { id: "appointments", label: "I can prepare for and manage my appointments." },
+  { id: "records", label: "I understand my health records and how to access them." },
+  { id: "rights", label: "I know my rights and privacy protections." },
+  { id: "billing", label: "I understand bills and payment options." },
+];
 
 export default function Plan({ navigation }: any) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<PlanShape | null>(null);
 
   async function load() {
-    const u = await getCurrentUser();
-    setUser(u);
+    try {
+      const p = await getPlan();
+      setPlan(p || {});
+    } catch {
+      setPlan({});
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // load when screen mounts
   useEffect(() => {
-    load();
-  }, []);
-
-  // also reload when screen is focused again
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [])
-  );
-
-  if (!user) {
-    return (
-      <SafeAreaView style={styles.loadingWrap}>
-        <Text style={{ color: "#64748B" }}>Loading plan…</Text>
-      </SafeAreaView>
-    );
-  }
-
-  const { phase, plan } = user;
-
-  // mark a goal done in storage then reload
-  async function complete(goalId: string) {
-    setUpdatingId(goalId);
-    await markGoalDone(goalId);
-    await load();
-    setUpdatingId(null);
-  }
+    const unsubscribe = navigation.addListener("focus", load);
+    load(); // first load
+    return unsubscribe;
+  }, [navigation]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header / intro */}
-        <Text style={styles.title}>
-          Your Learning Plan
-        </Text>
-        <Text style={styles.subtitle}>
-          Phase {phase}: Things you should be able to do
-        </Text>
+    <ScrollView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
+      <View style={styles.wrapper}>
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>‹ Back</Text>
+          </Pressable>
+          <Text style={styles.header}>Learning Plan</Text>
+        </View>
 
-        <View style={{ height: 12 }} />
+        <Text style={styles.sub}>Phase 1 (age 14)</Text>
 
-        {plan.length === 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.muted}>
-              No items in your plan yet. (This usually
-              means we didn’t collect your age. Try
-              logging out and making a new account.)
-            </Text>
-            <Pressable
-              style={[
-                styles.primaryBtn,
-                { marginTop: 12 },
-              ]}
-              onPress={() => navigation.navigate("Auth")}
-            >
-              <Text style={styles.primaryBtnText}>
-                Go to Sign In
-              </Text>
-            </Pressable>
+        <Text style={styles.sectionTitle}>Still learning</Text>
+        <Text style={styles.sectionSub}>These are skills you’re still building.</Text>
+
+        {loading ? (
+          <View style={{ paddingVertical: 24 }}>
+            <ActivityIndicator />
           </View>
         ) : (
-          plan.map((goal: LearningGoal) => {
-            const done = goal.done;
-            const loadingThis = updatingId === goal.id;
-
+          TOPICS.map((t) => {
+            const done = !!plan?.topics?.[t.id]?.quiz;
             return (
-              <View key={goal.id} style={styles.goalRow}>
-                <View style={styles.goalLeft}>
-                  <View
-                    style={[
-                      styles.checkCircle,
-                      done && styles.checkCircleDone,
-                    ]}
-                  >
-                    {done ? (
-                      <Ionicons
-                        name="checkmark"
-                        size={14}
-                        color="#fff"
-                      />
-                    ) : null}
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.goalText,
-                      done && styles.goalTextDone,
-                    ]}
-                  >
-                    {goal.label}
-                  </Text>
-                </View>
-
-                {!done ? (
-                  <Pressable
-                    style={styles.completeBtn}
-                    disabled={loadingThis}
-                    onPress={() => complete(goal.id)}
-                  >
-                    <Text
-                      style={styles.completeBtnText}
-                    >
-                      {loadingThis
-                        ? "Saving..."
-                        : "Mark done"}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Text
-                    style={[
-                      styles.doneTag,
-                      { color: "#16A34A" },
-                    ]}
-                  >
-                    Done
-                  </Text>
-                )}
-              </View>
+              <Pressable
+                key={t.id}
+                style={[styles.row, done && styles.rowDone]}
+                onPress={() =>
+                  navigation.navigate("TopicDetails", {
+                    topicId: t.id,
+                    title: t.label,
+                    passPct: 80,
+                  })
+                }
+              >
+                <View
+                  style={[
+                    styles.statusDot,
+                    {
+                      borderColor: done ? "#10B981" : "#ef4444",
+                      backgroundColor: done ? "#10B981" : "transparent",
+                    },
+                  ]}
+                />
+                <Text style={styles.rowText}>{t.label}</Text>
+              </Pressable>
             );
           })
         )}
 
-        <View style={{ height: 24 }} />
-      </ScrollView>
-    </SafeAreaView>
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Already handled</Text>
+        <Text style={styles.sectionSub}>You’ve said you can already do these.</Text>
+
+        {/* Render already-complete here if you track a separate list */}
+        <View style={{ height: 40 }} />
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingWrap: {
-    flex: 1,
-    backgroundColor: "#F6F8FB",
-    alignItems: "center",
-    justifyContent: "center",
+  wrapper: { padding: 16 },
+  backBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 10,
+    marginRight: 8,
   },
-  container: {
-    padding: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  subtitle: {
-    color: "#64748B",
-    marginTop: 4,
-  },
+  backBtnText: { fontWeight: "700", color: "#111827" },
+  header: { fontSize: 22, fontWeight: "800", color: "#0F172A" },
+  sub: { color: "#64748B", marginBottom: 16 },
 
-  card: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#1F2937",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    marginBottom: 14,
-  },
-  muted: {
-    color: "#64748B",
-  },
+  sectionTitle: { fontWeight: "800", color: "#111827", marginTop: 8 },
+  sectionSub: { color: "#6B7280", marginBottom: 12 },
 
-  goalRow: {
+  row: {
     backgroundColor: "white",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: "#FEE2E2", // red-100
     marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-
-    shadowColor: "#1F2937",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
   },
-
-  goalLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexShrink: 1,
-    gap: 12,
+  rowDone: {
+    borderColor: "#D1FAE5", // emerald-100
+    backgroundColor: "#F0FDF4",
   },
-
-  checkCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  statusDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
     borderWidth: 2,
-    borderColor: "#CBD5E1",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
+    marginRight: 10,
   },
-  checkCircleDone: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
-  },
-
-  goalText: {
-    color: "#0F172A",
-    fontWeight: "600",
-    flexShrink: 1,
-  },
-  goalTextDone: {
-    color: "#6EE7B7",
-    textDecorationLine: "line-through",
-  },
-
-  completeBtn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  completeBtnText: {
-    color: "white",
-    fontWeight: "700",
-  },
-
-  doneTag: {
-    fontWeight: "700",
-  },
-
-  primaryBtn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    color: "white",
-    fontWeight: "800",
-  },
+  rowText: { color: "#111827", fontWeight: "600", flexShrink: 1 },
 });
