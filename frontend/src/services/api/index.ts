@@ -40,3 +40,17 @@ export type {
   HealthInfoData,
   HealthInfoResponse,
 } from "./healthInfo";
+
+// Appointments service
+export {
+  getAllAppointments,
+  getAppointmentById,
+  createAppointment,
+  updateAppointment,
+  deleteAppointment,
+} from "./appointments";
+export type {
+  Appointment,
+  AppointmentsResponse,
+  AppointmentResponse,
+} from "./appointments";

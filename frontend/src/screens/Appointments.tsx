@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   SafeAreaView,
   View,
@@ -8,23 +8,27 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { getAllAppointments, createAppointment, updateAppointment, deleteAppointment, type Appointment } from "../services/api/appointments";
 
 type Visit = {
   id: string;
   date: string;   // "2025-11-02"
   time: string;   // "15:00"
   provider: string;
+  location?: string;
   reason: string;
   notes?: string;
   done?: boolean; // reflection completed
+  notesBefore?: string;
+  notesAfter?: string;
 };
 
 export default function Appointments({ route }: any) {
-  const [visits, setVisits] = useState<Visit[]>([
-    { id: "v1", date: "2025-10-29", time: "15:00", provider: "Dr. Nguyen", reason: "Check-up" },
-  ]);
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [showAdd, setShowAdd] = useState(false);
   const [showPrep, setShowPrep] = useState<Visit | null>(null);
@@ -33,12 +37,48 @@ export default function Appointments({ route }: any) {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [provider, setProvider] = useState("");
+  const [location, setLocation] = useState("");
   const [reason, setReason] = useState("");
 
   const [prepAnswers, setPrepAnswers] = useState({ q1: "", q2: "", q3: "" });
   const [reflectAnswers, setReflectAnswers] = useState({ r1: "", r2: "", r3: "" });
 
   const shouldOpenAdd = route?.params?.add === true;
+
+  // Load appointments from backend on mount
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
+  async function loadAppointments() {
+    setIsLoading(true);
+    const result = await getAllAppointments();
+
+    if (result.ok && result.data?.appointments) {
+      // Convert backend Appointment to frontend Visit format
+      const convertedVisits: Visit[] = result.data.appointments.map((apt: Appointment) => {
+        const appointmentDate = new Date(apt.appointment_date);
+        const date = appointmentDate.toISOString().split('T')[0]; // "2025-11-02"
+        const time = appointmentDate.toTimeString().substring(0, 5); // "15:00"
+
+        return {
+          id: apt.id,
+          date,
+          time,
+          provider: apt.provider || "",
+          location: apt.location || undefined,
+          reason: apt.purpose || "",
+          notesBefore: apt.notes_before || undefined,
+          notesAfter: apt.notes_after || undefined,
+          done: !!apt.notes_after, // Mark as done if reflection notes exist
+        };
+      });
+
+      setVisits(convertedVisits);
+    }
+
+    setIsLoading(false);
+  }
 
   React.useEffect(() => {
     if (shouldOpenAdd) setShowAdd(true);
@@ -57,28 +97,141 @@ export default function Appointments({ route }: any) {
     return sorted;
   }, [visits]);
 
-  const onAddVisit = () => {
+  const onAddVisit = async () => {
+    console.log("onAddVisit called");
+    console.log("Form values:", { date, time, provider, location, reason });
+
     if (!date || !time || !provider || !reason) {
       Alert.alert("Missing info", "Please fill date, time, provider, and reason.");
       return;
     }
-    const id = "v" + Math.random().toString(36).slice(2, 7);
-    setVisits((v) => [{ id, date, time, provider, reason }, ...v]);
-    setDate(""); setTime(""); setProvider(""); setReason("");
-    setShowAdd(false);
+
+    try {
+      // Combine date and time to create ISO datetime
+      const appointmentDate = new Date(`${date}T${time}:00`).toISOString();
+      console.log("appointmentDate:", appointmentDate);
+
+      const result = await createAppointment({
+        title: reason,
+        provider,
+        appointmentDate,
+        location: location || undefined,
+        purpose: reason,
+      });
+
+      console.log("createAppointment result:", result);
+
+      if (result.ok && result.data?.appointment) {
+        // Reload appointments from backend
+        await loadAppointments();
+        setDate(""); setTime(""); setProvider(""); setLocation(""); setReason("");
+        setShowAdd(false);
+        Alert.alert("Success", "Appointment added successfully!");
+      } else {
+        Alert.alert("Error", result.error || "Failed to add appointment");
+      }
+    } catch (error) {
+      console.error("Error in onAddVisit:", error);
+      Alert.alert("Error", "An unexpected error occurred");
+    }
   };
 
-  const onDelete = (id: string) => setVisits((v) => v.filter((x) => x.id !== id));
-  const openPrep = (v: Visit) => { setPrepAnswers({ q1: "", q2: "", q3: "" }); setShowPrep(v); };
-  const savePrep = () => { setShowPrep(null); Alert.alert("Saved", "Prep notes saved for this visit."); };
+  const onDelete = async (id: string) => {
+    const result = await deleteAppointment(id);
+    if (result.ok) {
+      setVisits((v) => v.filter((x) => x.id !== id));
+      Alert.alert("Success", "Appointment deleted successfully!");
+    } else {
+      Alert.alert("Error", result.error || "Failed to delete appointment");
+    }
+  };
 
-  const openReflect = (v: Visit) => { setReflectAnswers({ r1: "", r2: "", r3: "" }); setShowReflect(v); };
-  const saveReflect = () => {
+  const openPrep = (v: Visit) => {
+    // Load existing prep notes if available
+    if (v.notesBefore) {
+      try {
+        const parsed = JSON.parse(v.notesBefore);
+        setPrepAnswers({
+          q1: parsed.q1 || "",
+          q2: parsed.q2 || "",
+          q3: parsed.q3 || "",
+        });
+      } catch {
+        setPrepAnswers({ q1: "", q2: "", q3: "" });
+      }
+    } else {
+      setPrepAnswers({ q1: "", q2: "", q3: "" });
+    }
+    setShowPrep(v);
+  };
+
+  const savePrep = async () => {
+    if (!showPrep) return;
+
+    // Convert prep answers to JSON string
+    const notesBefore = JSON.stringify(prepAnswers);
+
+    const result = await updateAppointment(showPrep.id, {
+      notesBefore,
+    });
+
+    if (result.ok) {
+      // Reload appointments to get updated data
+      await loadAppointments();
+      setShowPrep(null);
+      Alert.alert("Saved", "Prep notes saved for this visit.");
+    } else {
+      Alert.alert("Error", result.error || "Failed to save prep notes");
+    }
+  };
+
+  const openReflect = (v: Visit) => {
+    // Load existing reflection notes if available
+    if (v.notesAfter) {
+      try {
+        const parsed = JSON.parse(v.notesAfter);
+        setReflectAnswers({
+          r1: parsed.r1 || "",
+          r2: parsed.r2 || "",
+          r3: parsed.r3 || "",
+        });
+      } catch {
+        setReflectAnswers({ r1: "", r2: "", r3: "" });
+      }
+    } else {
+      setReflectAnswers({ r1: "", r2: "", r3: "" });
+    }
+    setShowReflect(v);
+  };
+
+  const saveReflect = async () => {
     if (!showReflect) return;
-    setVisits((old) => old.map((x) => (x.id === showReflect.id ? { ...x, done: true } : x)));
-    setShowReflect(null);
-    Alert.alert("Great job!", "Reflection saved. Visit marked as done.");
+
+    // Convert reflection answers to JSON string
+    const notesAfter = JSON.stringify(reflectAnswers);
+
+    const result = await updateAppointment(showReflect.id, {
+      notesAfter,
+    });
+
+    if (result.ok) {
+      // Reload appointments to get updated data
+      await loadAppointments();
+      setShowReflect(null);
+      Alert.alert("Great job!", "Reflection saved. Visit marked as done.");
+    } else {
+      Alert.alert("Error", result.error || "Failed to save reflection");
+    }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={{ marginTop: 12, color: "#64748B" }}>Loading appointments...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -99,6 +252,7 @@ export default function Appointments({ route }: any) {
               <Field label="Time" placeholder="HH:MM (24h)" value={time} onChangeText={setTime} />
             </TwoCol>
             <Field label="Provider" placeholder="Dr. Smith" value={provider} onChangeText={setProvider} />
+            <Field label="Location" placeholder="123 Main St, Clinic Name" value={location} onChangeText={setLocation} />
             <Field label="Reason" placeholder="Check-up / Follow-up / Vaccination…" value={reason} onChangeText={setReason} />
             <Pressable style={styles.primaryBtn} onPress={onAddVisit}>
               <Text style={styles.primaryText}>Save Visit</Text>
@@ -117,6 +271,7 @@ export default function Appointments({ route }: any) {
                 {v.done ? <Text style={styles.donePill}>Done</Text> : <Text style={styles.upcomingPill}>Upcoming</Text>}
               </View>
               <Text style={styles.visitLine}><Text style={styles.bold}>Provider:</Text> {v.provider}</Text>
+              {v.location && <Text style={styles.visitLine}><Text style={styles.bold}>Location:</Text> {v.location}</Text>}
               <Text style={styles.visitLine}><Text style={styles.bold}>Reason:</Text> {v.reason}</Text>
 
               <View style={styles.row}>
@@ -236,6 +391,9 @@ const styles = StyleSheet.create({
   headerRow:{ flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:10 },
   h1:{ fontSize:22, fontWeight:"800", color:"#0F172A" },
   h2:{ fontSize:16, fontWeight:"800", color:"#0F172A", marginBottom:8 },
+
+  addBtn:{ backgroundColor:"#2563EB", paddingVertical:10, paddingHorizontal:14, borderRadius:12, flexDirection:"row", alignItems:"center", gap:6 },
+  addText:{ color:"white", fontWeight:"800" },
 
   card:{ backgroundColor:"white", borderRadius:16, padding:16, shadowColor:"#1F2937", shadowOpacity:0.06, shadowRadius:8, shadowOffset:{width:0,height:3}, marginBottom:14 },
 
