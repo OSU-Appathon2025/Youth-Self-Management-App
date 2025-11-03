@@ -9,11 +9,13 @@ import {
   StyleSheet,
 } from "react-native";
 import BackHeader from "../components/BackHeader";
-import { getCurrentUser, signIn } from "../storage/userStore";
+import { signIn } from "../storage/userStore";
 
 export default function LogInScreen({ navigation }: any) {
   const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   async function handleLogin() {
     if (!loginEmail.trim()) {
@@ -21,21 +23,34 @@ export default function LogInScreen({ navigation }: any) {
       return;
     }
 
-    const existing = await getCurrentUser();
-
-    if (existing && existing.email !== loginEmail.toLowerCase().trim()) {
-      setStatusMsg("No account found with that email. Try Create Account.");
+    if (!loginPassword.trim()) {
+      setStatusMsg("Please enter your password.");
       return;
     }
 
-    const profile = await signIn(loginEmail);
+    setIsLoading(true);
+    setStatusMsg("Logging in...");
 
-    setStatusMsg(`Welcome back, ${profile.name}!`);
+    const result = await signIn(loginEmail.trim(), loginPassword);
 
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Home" }],
-    });
+    setIsLoading(false);
+
+    if (!result.ok) {
+      setStatusMsg(result.error || "Login failed. Please check your credentials.");
+      return;
+    }
+
+    if (result.user) {
+      setStatusMsg(`Welcome back, ${result.user.name}!`);
+
+      // Navigate to Home after short delay
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Home" }],
+        });
+      }, 500);
+    }
   }
 
   return (
@@ -59,8 +74,24 @@ export default function LogInScreen({ navigation }: any) {
             style={styles.input}
           />
 
-          <Pressable style={styles.primaryBtn} onPress={handleLogin}>
-            <Text style={styles.primaryBtnText}>Log In</Text>
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#94A3B8"
+            secureTextEntry
+            autoCapitalize="none"
+            value={loginPassword}
+            onChangeText={setLoginPassword}
+            style={styles.input}
+          />
+
+          <Pressable
+            style={[styles.primaryBtn, isLoading && { opacity: 0.7 }]}
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            <Text style={styles.primaryBtnText}>
+              {isLoading ? "Logging in..." : "Log In"}
+            </Text>
           </Pressable>
 
           {statusMsg ? (

@@ -18,13 +18,48 @@ export default function CreateAccountScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   async function handleCreate() {
-    // convert age from text box -> number
+    // Validation
+    if (!name.trim()) {
+      setStatusMsg("Please enter your name.");
+      return;
+    }
+
+    if (!ageText.trim()) {
+      setStatusMsg("Please enter your age.");
+      return;
+    }
+
     const ageNum = parseInt(ageText, 10);
+    if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
+      setStatusMsg("Please enter a valid age.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setStatusMsg("Please enter your email.");
+      return;
+    }
+
+    if (!pw.trim()) {
+      setStatusMsg("Please enter a password.");
+      return;
+    }
+
+    if (pw.length < 6) {
+      setStatusMsg("Password must be at least 6 characters.");
+      return;
+    }
+
+    setIsLoading(true);
+    setStatusMsg("Creating your account...");
 
     // call signUp from userStore
     const res = await signUp(name, ageNum, email, pw);
+
+    setIsLoading(false);
 
     if (!res.ok) {
       // something went wrong, show message
@@ -33,13 +68,17 @@ export default function CreateAccountScreen({ navigation }: any) {
     }
 
     // success!
-    setStatusMsg("Your account was created! 🎉");
+    if (res.user) {
+      setStatusMsg(`Welcome, ${res.user.name}! 🎉`);
 
-    // after success, go to Home and clear auth screens
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Home" }],
-    });
+      // Navigate to Home after short delay
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Home" }],
+        });
+      }, 500);
+    }
   }
 
   return (
@@ -100,8 +139,14 @@ export default function CreateAccountScreen({ navigation }: any) {
           />
 
           {/* button */}
-          <Pressable style={styles.primaryBtn} onPress={handleCreate}>
-            <Text style={styles.primaryBtnText}>Create account</Text>
+          <Pressable
+            style={[styles.primaryBtn, isLoading && { opacity: 0.7 }]}
+            onPress={handleCreate}
+            disabled={isLoading}
+          >
+            <Text style={styles.primaryBtnText}>
+              {isLoading ? "Creating account..." : "Create account"}
+            </Text>
           </Pressable>
 
           {/* feedback */}

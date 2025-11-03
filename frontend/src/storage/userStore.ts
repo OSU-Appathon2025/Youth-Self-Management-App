@@ -127,46 +127,125 @@ export async function signUp(
   email: string,
   password: string
 ): Promise<{ ok: boolean; user?: UserProfile; error?: string }> {
-  const existing = await getCurrentUser();
+  // Import API client (lazy import to avoid circular dependencies)
+  const { registerUser, getUserProfile } = await import("../services/api");
 
-  // if we already have a saved user AND the email matches,
-  // don't silently overwrite — tell them to log in instead
-  if (
-    existing &&
-    existing.email === email.trim().toLowerCase()
-  ) {
+  // Calculate date of birth from age (approximate)
+  const today = new Date();
+  const birthYear = today.getFullYear() - age;
+  const dateOfBirth = `${birthYear}-01-01`; // Simple approximation
+
+  // Call backend API
+  const registerResult = await registerUser(email, password, name, dateOfBirth);
+
+  if (!registerResult.ok) {
     return {
       ok: false,
-      error: "You already made an account. Please log in.",
+      error: registerResult.error || "Registration failed",
     };
   }
 
-  const newUser = await createAccountInternal(
-    name,
-    email,
-    age,
-    password
-  );
+  // Fetch the full profile from backend
+  const profileResult = await getUserProfile();
 
+  if (!profileResult.ok || !profileResult.data) {
+    // Auth succeeded but couldn't get profile - still create local profile
+    const phase = pickPhaseFromAge(age);
+    const localProfile: UserProfile = {
+      id: registerResult.data!.user.id,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      age,
+      password,
+      phase,
+      plan: buildPlanForPhase(phase),
+      hasCompletedAssessment: false,
+      lastAssessmentScore: null,
+      lastAssessmentAt: null,
+    };
+
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(localProfile));
+    return { ok: true, user: localProfile };
+  }
+
+  // Create local profile from backend data
+  const backendProfile = profileResult.data.profile;
+  const phase = pickPhaseFromAge(age);
+
+  const newUser: UserProfile = {
+    id: backendProfile.id,
+    name: backendProfile.full_name || name,
+    email: backendProfile.email,
+    age,
+    password,
+    phase,
+    plan: buildPlanForPhase(phase),
+    hasCompletedAssessment: false,
+    lastAssessmentScore: null,
+    lastAssessmentAt: null,
+  };
+
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(newUser));
   return { ok: true, user: newUser };
 }
 
-// "log in": return the saved profile if email matches.
-// (Optional pw check: we can require matching password later)
+// "log in": authenticate with backend and return profile
 export async function signIn(
   email: string,
-  password?: string
-): Promise<UserProfile | null> {
-  const u = await getCurrentUser();
-  if (!u) return null;
+  password: string
+): Promise<{ ok: boolean; user?: UserProfile; error?: string }> {
+  // Import API client (lazy import to avoid circular dependencies)
+  const { loginUser, getUserProfile } = await import("../services/api");
 
-  const matchesEmail = u.email === email.trim().toLowerCase();
-  if (!matchesEmail) return null;
+  // Call backend login API
+  const loginResult = await loginUser(email, password);
 
-  // if you want to force password match, uncomment:
-  // if (password != null && u.password !== password) return null;
+  if (!loginResult.ok) {
+    return {
+      ok: false,
+      error: loginResult.error || "Login failed",
+    };
+  }
 
-  return u;
+  // Fetch the full profile from backend
+  const profileResult = await getUserProfile();
+
+  if (!profileResult.ok || !profileResult.data) {
+    return {
+      ok: false,
+      error: "Could not fetch user profile",
+    };
+  }
+
+  // Check if we have a local profile to get age/phase info
+  const localProfile = await getCurrentUser();
+
+  // Calculate age from date_of_birth if available
+  let age = localProfile?.age || 18; // default
+  if (profileResult.data.profile.date_of_birth) {
+    const birthDate = new Date(profileResult.data.profile.date_of_birth);
+    const today = new Date();
+    age = today.getFullYear() - birthDate.getFullYear();
+  }
+
+  const backendProfile = profileResult.data.profile;
+  const phase = pickPhaseFromAge(age);
+
+  const user: UserProfile = {
+    id: backendProfile.id,
+    name: backendProfile.full_name || "User",
+    email: backendProfile.email,
+    age,
+    password,
+    phase,
+    plan: localProfile?.plan || buildPlanForPhase(phase),
+    hasCompletedAssessment: localProfile?.hasCompletedAssessment || false,
+    lastAssessmentScore: localProfile?.lastAssessmentScore || null,
+    lastAssessmentAt: localProfile?.lastAssessmentAt || null,
+  };
+
+  await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+  return { ok: true, user };
 }
 
 // patch the currently saved profile

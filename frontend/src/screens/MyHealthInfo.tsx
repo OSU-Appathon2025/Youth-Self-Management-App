@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -8,8 +8,10 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { getHealthInfo, saveHealthInfo } from "../services/api/healthInfo";
 
 type Insurance = {
   planName: string;
@@ -28,6 +30,71 @@ export default function MyHealthInfo({ navigation }: any) {
   });
   const [contact, setContact] = useState<Contact>({ name: "", relation: "", phone: "" });
   const [profile, setProfile] = useState<Profile>({ preferredPharmacy: "", allergies: "", medications: "" });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load health info from backend on mount
+  useEffect(() => {
+    loadHealthInfo();
+  }, []);
+
+  async function loadHealthInfo() {
+    setIsLoading(true);
+    const result = await getHealthInfo();
+
+    if (result.ok && result.data?.healthInfo) {
+      const data = result.data.healthInfo;
+
+      // Map backend fields to frontend state
+      // Note: Additional fields (groupNumber, rxBin, rxPcn, phone, contact) are stored in health_summary
+      setInsurance({
+        planName: data.insurance_provider || "",
+        memberId: data.insurance_id || "",
+        groupNumber: "",
+        rxBin: "",
+        rxPcn: "",
+        phone: "",
+      });
+
+      setProfile({
+        preferredPharmacy: "",
+        allergies: data.allergies || "",
+        medications: "",
+      });
+
+      // Parse health_summary for additional fields if present
+      if (data.health_summary) {
+        const parts = data.health_summary.split(" | ");
+        parts.forEach((part) => {
+          if (part.startsWith("Group: ")) {
+            setInsurance((prev) => ({ ...prev, groupNumber: part.replace("Group: ", "") }));
+          } else if (part.startsWith("RX BIN: ")) {
+            setInsurance((prev) => ({ ...prev, rxBin: part.replace("RX BIN: ", "") }));
+          } else if (part.startsWith("RX PCN: ")) {
+            setInsurance((prev) => ({ ...prev, rxPcn: part.replace("RX PCN: ", "") }));
+          } else if (part.startsWith("Phone: ")) {
+            setInsurance((prev) => ({ ...prev, phone: part.replace("Phone: ", "") }));
+          } else if (part.startsWith("Pharmacy: ")) {
+            setProfile((prev) => ({ ...prev, preferredPharmacy: part.replace("Pharmacy: ", "") }));
+          } else if (part.startsWith("Medications: ")) {
+            setProfile((prev) => ({ ...prev, medications: part.replace("Medications: ", "") }));
+          } else if (part.startsWith("Emergency Contact: ")) {
+            // Parse "Emergency Contact: Name (Relation) Phone"
+            const contactMatch = part.match(/Emergency Contact: (.+?) \((.+?)\) (.+)/);
+            if (contactMatch) {
+              setContact({
+                name: contactMatch[1],
+                relation: contactMatch[2],
+                phone: contactMatch[3],
+              });
+            }
+          }
+        });
+      }
+    }
+
+    setIsLoading(false);
+  }
 
   const dirty =
     Object.values(insurance).some(Boolean) ||
@@ -35,19 +102,61 @@ export default function MyHealthInfo({ navigation }: any) {
     Object.values(profile).some(Boolean);
 
   const validate = () => {
-    if (!contact.name || !contact.phone) {
-      Alert.alert("Add an emergency contact","Please include at least a name and phone number.");
-      return false;
-    }
     if (!insurance.planName || !insurance.memberId) {
-      Alert.alert("Insurance basics","Please include plan name and member ID.");
+      Alert.alert("Insurance basics", "Please include plan name and member ID.");
       return false;
     }
     return true;
   };
 
-  const onSave = () => { if (!validate()) return; Alert.alert("Saved!", "Your info is saved on this device for now."); };
+  const onSave = async () => {
+    if (!validate()) return;
+
+    setIsSaving(true);
+
+    // Build health summary from additional fields
+    const additionalFields = [];
+    if (insurance.groupNumber) additionalFields.push(`Group: ${insurance.groupNumber}`);
+    if (insurance.rxBin) additionalFields.push(`RX BIN: ${insurance.rxBin}`);
+    if (insurance.rxPcn) additionalFields.push(`RX PCN: ${insurance.rxPcn}`);
+    if (insurance.phone) additionalFields.push(`Phone: ${insurance.phone}`);
+    if (profile.preferredPharmacy) additionalFields.push(`Pharmacy: ${profile.preferredPharmacy}`);
+    if (profile.medications) additionalFields.push(`Medications: ${profile.medications}`);
+    if (contact.name) {
+      additionalFields.push(`Emergency Contact: ${contact.name} (${contact.relation}) ${contact.phone}`);
+    }
+
+    const healthSummary = additionalFields.join(" | ");
+
+    const result = await saveHealthInfo({
+      insuranceProvider: insurance.planName,
+      insuranceId: insurance.memberId,
+      primaryPhysician: undefined, // Not using this field
+      allergies: profile.allergies || undefined,
+      healthConditions: undefined, // Not using this field (reserved for conditions like "Asthma", "Diabetes")
+      healthSummary,
+    });
+
+    setIsSaving(false);
+
+    if (!result.ok) {
+      Alert.alert("Error", result.error || "Failed to save health info");
+      return;
+    }
+
+    Alert.alert("Saved!", "Your health info has been saved to the cloud.");
+  };
+
   const onExportSummary = () => navigation.navigate("Summary", { insurance, contact, profile });
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={{ marginTop: 12, color: "#64748B" }}>Loading your health info...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
@@ -96,7 +205,15 @@ export default function MyHealthInfo({ navigation }: any) {
         </Section>
 
         <View style={{ height: 8 }} />
-        <Pressable style={styles.primaryBtn} onPress={onSave}><Text style={styles.primaryText}>Save</Text></Pressable>
+        <Pressable
+          style={[styles.primaryBtn, isSaving && { opacity: 0.7 }]}
+          onPress={onSave}
+          disabled={isSaving}
+        >
+          <Text style={styles.primaryText}>
+            {isSaving ? "Saving..." : "Save"}
+          </Text>
+        </Pressable>
         <Pressable style={[styles.secondaryBtn, { marginTop: 10 }]} onPress={onExportSummary}>
           <Text style={styles.secondaryText}>Export Summary →</Text>
         </Pressable>
