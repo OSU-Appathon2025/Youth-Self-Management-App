@@ -1,4 +1,3 @@
-// frontend/src/screens/CreateAccountScreen.tsx
 import React, { useState } from "react";
 import {
   SafeAreaView,
@@ -10,36 +9,43 @@ import {
   StyleSheet,
 } from "react-native";
 import BackHeader from "../components/BackHeader";
-import { signUp } from "../storage/userStore";
+import { createAccount } from "../storage/userStore";
 
 export default function CreateAccountScreen({ navigation }: any) {
   const [name, setName] = useState("");
   const [ageText, setAgeText] = useState("");
   const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
+  const [pw, setPw] = useState(""); // not enforced yet
   const [statusMsg, setStatusMsg] = useState("");
 
   async function handleCreate() {
-    // convert age from text box -> number
     const ageNum = parseInt(ageText, 10);
 
-    // call signUp from userStore
-    const res = await signUp(name, ageNum, email, pw);
-
-    if (!res.ok) {
-      // something went wrong, show message
-      setStatusMsg(res.error || "Something went wrong.");
+    if (!name.trim() || !email.trim() || !ageNum) {
+      setStatusMsg("Please fill in name, age, and email.");
       return;
     }
 
-    // success!
-    setStatusMsg("Your account was created! 🎉");
+    try {
+      const profile = await createAccount(
+        name.trim(),
+        email.trim().toLowerCase(),
+        ageNum
+      );
 
-    // after success, go to Home and clear auth screens
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Home" }],
-    });
+      if (profile) {
+        setStatusMsg("Your account has been made! 🎉");
+
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Home" }],
+        });
+      } else {
+        setStatusMsg("Something went wrong creating your account.");
+      }
+    } catch (err) {
+      setStatusMsg("Error creating account.");
+    }
   }
 
   return (
@@ -48,63 +54,50 @@ export default function CreateAccountScreen({ navigation }: any) {
         <BackHeader title="Create Account" navigation={navigation} />
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Create account</Text>
-
+          <Text style={styles.cardTitle}>Let's get started</Text>
           <Text style={styles.cardDesc}>
-            We ask your age because different ages are expected to know
-            different health skills. This helps build your plan.
+            We’ll build a plan for you based on your age.
           </Text>
 
-          {/* name */}
-          <Text style={styles.label}>Name</Text>
           <TextInput
-            placeholder="Taylor"
+            placeholder="Name"
             placeholderTextColor="#94A3B8"
             value={name}
             onChangeText={setName}
             style={styles.input}
           />
 
-          {/* age */}
-          <Text style={styles.label}>Age</Text>
           <TextInput
-            placeholder="16"
+            placeholder="Age"
             placeholderTextColor="#94A3B8"
-            keyboardType="number-pad"
             value={ageText}
             onChangeText={setAgeText}
+            keyboardType="numeric"
             style={styles.input}
           />
 
-          {/* email */}
-          <Text style={styles.label}>Email</Text>
           <TextInput
-            placeholder="you@example.com"
+            placeholder="Email"
             placeholderTextColor="#94A3B8"
-            keyboardType="email-address"
-            autoCapitalize="none"
             value={email}
             onChangeText={setEmail}
+            autoCapitalize="none"
             style={styles.input}
           />
 
-          {/* password */}
-          <Text style={styles.label}>Password</Text>
           <TextInput
-            placeholder="••••••••"
+            placeholder="Password (not checked yet)"
             placeholderTextColor="#94A3B8"
-            secureTextEntry
             value={pw}
             onChangeText={setPw}
+            secureTextEntry
             style={styles.input}
           />
 
-          {/* button */}
           <Pressable style={styles.primaryBtn} onPress={handleCreate}>
             <Text style={styles.primaryBtnText}>Create account</Text>
           </Pressable>
 
-          {/* feedback */}
           {statusMsg ? (
             <Text style={styles.statusText}>{statusMsg}</Text>
           ) : null}
@@ -128,22 +121,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
     color: "#0F172A",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   cardDesc: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#64748B",
     marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 6,
   },
   input: {
     borderWidth: 2,
@@ -151,9 +138,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    marginBottom: 14,
+    marginBottom: 12,
     color: "#0F172A",
     fontWeight: "600",
+    backgroundColor: "white",
   },
   primaryBtn: {
     backgroundColor: "#2563EB",

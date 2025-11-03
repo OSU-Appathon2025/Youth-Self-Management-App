@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+// frontend/src/screens/MyHealthInfo.tsx
+
+import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -7,194 +9,298 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  Alert,
+  Platform,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-
-type Insurance = {
-  planName: string;
-  memberId: string;
-  groupNumber: string;
-  rxBin: string;
-  rxPcn: string;
-  phone: string;
-};
-type Contact = { name: string; relation: string; phone: string; };
-type Profile = { preferredPharmacy: string; allergies: string; medications: string; };
+import {
+  getHealthInfo,
+  saveHealthInfo,
+  HealthInfo,
+} from "../storage/healthStore";
 
 export default function MyHealthInfo({ navigation }: any) {
-  const [insurance, setInsurance] = useState<Insurance>({
-    planName: "", memberId: "", groupNumber: "", rxBin: "", rxPcn: "", phone: "",
-  });
-  const [contact, setContact] = useState<Contact>({ name: "", relation: "", phone: "" });
-  const [profile, setProfile] = useState<Profile>({ preferredPharmacy: "", allergies: "", medications: "" });
+  // all the fields we care about
+  const [fullName, setFullName] = useState("");
+  const [diagnoses, setDiagnoses] = useState("");
+  const [meds, setMeds] = useState("");
+  const [allergies, setAllergies] = useState("");
+  const [insuranceCard, setInsuranceCard] = useState("");
+  const [emergencyName, setEmergencyName] = useState("");
+  const [emergencyRelation, setEmergencyRelation] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [preferredPharmacy, setPreferredPharmacy] = useState("");
 
-  const dirty =
-    Object.values(insurance).some(Boolean) ||
-    Object.values(contact).some(Boolean) ||
-    Object.values(profile).some(Boolean);
+  const [statusMsg, setStatusMsg] = useState("");
 
-  const validate = () => {
-    if (!contact.name || !contact.phone) {
-      Alert.alert("Add an emergency contact","Please include at least a name and phone number.");
-      return false;
-    }
-    if (!insurance.planName || !insurance.memberId) {
-      Alert.alert("Insurance basics","Please include plan name and member ID.");
-      return false;
-    }
-    return true;
-  };
+  // load saved info once
+  useEffect(() => {
+    (async () => {
+      const data = await getHealthInfo();
+      setFullName(data.fullName);
+      setDiagnoses(data.diagnoses);
+      setMeds(data.meds);
+      setAllergies(data.allergies);
+      setInsuranceCard(data.insuranceCard);
+      setEmergencyName(data.emergencyName);
+      setEmergencyRelation(data.emergencyRelation);
+      setEmergencyPhone(data.emergencyPhone);
+      setPreferredPharmacy(data.preferredPharmacy);
+    })();
+  }, []);
 
-  const onSave = () => { if (!validate()) return; Alert.alert("Saved!", "Your info is saved on this device for now."); };
-  const onExportSummary = () => navigation.navigate("Summary", { insurance, contact, profile });
+  async function handleSave() {
+    const payload: HealthInfo = {
+      fullName,
+      diagnoses,
+      meds,
+      allergies,
+      insuranceCard,
+      emergencyName,
+      emergencyRelation,
+      emergencyPhone,
+      preferredPharmacy,
+    };
+
+    await saveHealthInfo(payload);
+
+    setStatusMsg("Saved!");
+    setTimeout(() => setStatusMsg(""), 2000);
+  }
+
+  function handleExport() {
+    navigation.navigate("Summary");
+  }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <Text style={styles.h1}>My Info</Text>
-          <Pressable onPress={() => navigation.goBack()}><Text style={styles.link}>← Home</Text></Pressable>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+      <ScrollView contentContainerStyle={styles.pageWrap}>
+        {/* Top bar: back + title (like your screenshots) */}
+        <View style={styles.topBar}>
+          <Pressable
+            style={styles.backWrap}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={16} color="#0F172A" />
+          </Pressable>
+
+          <Text style={styles.topTitle}>My Info</Text>
+
+          {/* spacer so the title stays centered */}
+          <View style={{ width: 24 }} />
         </View>
 
-        <InfoCard
-          title="What goes in the vault?"
-          bullets={[
-            "Insurance info (plan name, member ID, phone on the card)",
-            "Emergency contact (a parent/guardian or trusted adult)",
-            "Allergies & current meds",
-            "Preferred pharmacy name or address",
-          ]}
-          tip="Find insurance details on your card. Ask a parent/guardian if you don’t have it yet."
-        />
+        {/* Big white panel area like your wide layout */}
+        <View style={styles.bigCard}>
+          {/* each field block */}
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Your full name</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Your name"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
 
-        <Section title="Insurance">
-          <Tip title="What to include">Plan name, member ID, group number, pharmacy BIN/PCN, phone on the back.</Tip>
-          <Field label="Plan Name" placeholder="Buckeye Health" value={insurance.planName} onChangeText={(v)=>setInsurance({...insurance, planName:v})}/>
-          <Field label="Member ID" placeholder="ABC1234567" value={insurance.memberId} onChangeText={(v)=>setInsurance({...insurance, memberId:v})}/>
-          <Field label="Group # (optional)" placeholder="123456" value={insurance.groupNumber} onChangeText={(v)=>setInsurance({...insurance, groupNumber:v})}/>
-          <TwoCol>
-            <Field label="RX BIN (optional)" placeholder="610011" value={insurance.rxBin} onChangeText={(v)=>setInsurance({...insurance, rxBin:v})}/>
-            <Field label="RX PCN (optional)" placeholder="A4" value={insurance.rxPcn} onChangeText={(v)=>setInsurance({...insurance, rxPcn:v})}/>
-          </TwoCol>
-          <Field label="Phone on card" placeholder="800-555-1234" value={insurance.phone} onChangeText={(v)=>setInsurance({...insurance, phone:v})}/>
-        </Section>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Conditions / diagnoses</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={diagnoses}
+              onChangeText={setDiagnoses}
+              placeholder="asthma, lupus..."
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
 
-        <Section title="Emergency Contact">
-          <Tip title="Who is this?">This is the adult the clinic should call in an emergency.</Tip>
-          <Field label="Name" placeholder="Jane Doe" value={contact.name} onChangeText={(v)=>setContact({...contact, name:v})}/>
-          <TwoCol>
-            <Field label="Relation" placeholder="Parent / Aunt / Guardian" value={contact.relation} onChangeText={(v)=>setContact({...contact, relation:v})}/>
-            <Field label="Phone" placeholder="614-555-1212" value={contact.phone} onChangeText={(v)=>setContact({...contact, phone:v})}/>
-          </TwoCol>
-        </Section>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Medicines and doses</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={meds}
+              onChangeText={setMeds}
+              placeholder="albuterol 2 puffs 2x/day"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
 
-        <Section title="Allergies & Medications">
-          <Field label="Allergies" placeholder="Peanuts, penicillin… (or 'None')" value={profile.allergies} onChangeText={(v)=>setProfile({...profile, allergies:v})} multiline/>
-          <Field label="Current Medications" placeholder="Adderall 10mg daily; Claritin as needed…" value={profile.medications} onChangeText={(v)=>setProfile({...profile, medications:v})} multiline/>
-          <Field label="Preferred Pharmacy" placeholder="Kroger, 123 High St, Columbus" value={profile.preferredPharmacy} onChangeText={(v)=>setProfile({...profile, preferredPharmacy:v})}/>
-        </Section>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Allergies</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={allergies}
+              onChangeText={setAllergies}
+              placeholder="nuts, penicillin..."
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
 
-        <View style={{ height: 8 }} />
-        <Pressable style={styles.primaryBtn} onPress={onSave}><Text style={styles.primaryText}>Save</Text></Pressable>
-        <Pressable style={[styles.secondaryBtn, { marginTop: 10 }]} onPress={onExportSummary}>
-          <Text style={styles.secondaryText}>Export Summary →</Text>
-        </Pressable>
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Insurance / ID info</Text>
+            <TextInput
+              style={[styles.inputRow, { minHeight: 60 }]}
+              value={insuranceCard}
+              onChangeText={setInsuranceCard}
+              placeholder="Plan / Member ID / Group # / RX BIN / phone on card"
+              placeholderTextColor="#94A3B8"
+              multiline
+            />
+          </View>
 
-        {!dirty ? <Text style={[styles.muted, { marginTop: 8 }]}>Tip: Fill at least Insurance + Emergency contact. You can add the rest later.</Text> : null}
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Emergency contact name</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={emergencyName}
+              onChangeText={setEmergencyName}
+              placeholder="Name"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
 
-        <View style={{ height: 24 }} />
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Emergency contact relation</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={emergencyRelation}
+              onChangeText={setEmergencyRelation}
+              placeholder="mom, sister, friend..."
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>Emergency contact phone</Text>
+            <TextInput
+              style={styles.inputRow}
+              value={emergencyPhone}
+              onChangeText={setEmergencyPhone}
+              placeholder="###-###-####"
+              placeholderTextColor="#94A3B8"
+              keyboardType={Platform.OS === "web" ? "default" : "phone-pad"}
+            />
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>
+              Preferred pharmacy / location
+            </Text>
+            <TextInput
+              style={styles.inputRow}
+              value={preferredPharmacy}
+              onChangeText={setPreferredPharmacy}
+              placeholder="CVS on High St"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
+
+          {/* Save button */}
+          <Pressable style={styles.primaryBtn} onPress={handleSave}>
+            <Text style={styles.primaryBtnText}>Save Info</Text>
+          </Pressable>
+
+          {statusMsg ? (
+            <Text style={styles.savedText}>{statusMsg}</Text>
+          ) : null}
+
+          {/* Export button */}
+          <Pressable style={styles.secondaryBtn} onPress={handleExport}>
+            <Text style={styles.secondaryBtnText}>
+              Export / Print Summary
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-/** UI bits */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
-    </View>
-  );
-}
-function Tip({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.tip}>
-      <Ionicons name="information-circle-outline" size={18} color="#2563EB" />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.tipTitle}>{title}</Text>
-        <Text style={styles.tipText}>{children}</Text>
-      </View>
-    </View>
-  );
-}
-function InfoCard({ title, bullets, tip }:{ title:string; bullets:string[]; tip?:string }) {
-  return (
-    <View style={[styles.card, { marginBottom: 12 }]}>
-      <Text style={styles.h2}>{title}</Text>
-      <View style={{ marginTop: 6 }}>
-        {bullets.map((b, i) => (
-          <View key={i} style={{ flexDirection: "row", marginBottom: 4 }}>
-            <Text style={{ marginRight: 6 }}>•</Text>
-            <Text style={{ flex: 1, color: "#111827" }}>{b}</Text>
-          </View>
-        ))}
-      </View>
-      {tip ? <Text style={[styles.muted, { marginTop: 6 }]}>{tip}</Text> : null}
-    </View>
-  );
-}
-function TwoCol({ children }: { children: React.ReactNode }) {
-  const arr = React.Children.toArray(children);
-  return (
-    <View style={{ flexDirection: "row", gap: 10 }}>
-      <View style={{ flex: 1 }}>{arr[0]}</View>
-      <View style={{ flex: 1 }}>{arr[1]}</View>
-    </View>
-  );
-}
-function Field({ label, placeholder, value, onChangeText, keyboardType, multiline }:{
-  label: string; placeholder?: string; value: string; onChangeText: (v:string)=>void;
-  keyboardType?: "default" | "phone-pad" | "email-address" | "numeric"; multiline?: boolean;
-}) {
-  return (
-    <View style={{ marginBottom: 12 }}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        placeholder={placeholder}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        style={[styles.input, multiline ? { height: 90, textAlignVertical: "top" } : null]}
-      />
-    </View>
-  );
-}
-
-/** styles */
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  headerRow:{ flexDirection:"row", alignItems:"center", justifyContent:"space-between", marginBottom:8 },
-  h1:{ fontSize:22, fontWeight:"800", color:"#0F172A" },
-  h2:{ fontSize:16, fontWeight:"800", color:"#0F172A" },
-  link:{ color:"#2563EB", fontWeight:"700" },
+  pageWrap: {
+    padding: 16,
+    // on big screens it'll still just stretch, but leaving padding so
+    // it doesn't touch the browser edges
+  },
 
-  section:{ marginTop: 10 },
-  sectionTitle:{ fontSize:14, fontWeight:"800", color:"#0F172A", marginBottom:6 },
-  card:{ backgroundColor:"white", borderRadius:16, padding:16, shadowColor:"#1F2937", shadowOpacity:0.06, shadowRadius:8, shadowOffset:{width:0,height:3} },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    justifyContent: "space-between",
+  },
+  backWrap: {
+    padding: 4,
+  },
+  topTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
 
-  tip:{ flexDirection:"row", gap:8, backgroundColor:"#EFF6FF", borderRadius:12, padding:10, marginBottom:12 },
-  tipTitle:{ fontWeight:"700", color:"#0F172A" },
-  tipText:{ color:"#111827" },
+  bigCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
 
-  label:{ fontWeight:"700", color:"#0F172A", marginBottom:6 },
-  input:{ backgroundColor:"#F3F4F6", borderRadius:10, paddingHorizontal:12, paddingVertical:10, borderWidth:1, borderColor:"#E5E7EB", color:"#111827" },
+  fieldBlock: {
+    marginBottom: 16,
+  },
+  fieldLabel: {
+    fontWeight: "700",
+    color: "#0F172A",
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  inputRow: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#0F172A",
+    fontWeight: "600",
+  },
 
-  muted:{ color:"#64748B" },
-  primaryBtn:{ backgroundColor:"#2563EB", paddingVertical:12, borderRadius:12, alignItems:"center" },
-  primaryText:{ color:"white", fontWeight:"800" },
-  secondaryBtn:{ backgroundColor:"#EDE9FE", paddingVertical:12, borderRadius:12, alignItems:"center" },
-  secondaryText:{ color:"#3730A3", fontWeight:"800" },
+  primaryBtn: {
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  primaryBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+
+  savedText: {
+    marginTop: 8,
+    fontWeight: "700",
+    color: "#10B981",
+    textAlign: "center",
+  },
+
+  secondaryBtn: {
+    backgroundColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  secondaryBtnText: {
+    color: "#0F172A",
+    fontWeight: "800",
+    fontSize: 15,
+  },
 });

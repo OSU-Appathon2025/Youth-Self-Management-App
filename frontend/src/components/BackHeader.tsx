@@ -11,14 +11,9 @@ export default function BackHeader({
   navigation: any;
 }) {
   return (
-    <View style={styles.wrap}>
-      <Pressable
-        onPress={() => {
-          if (navigation.canGoBack()) navigation.goBack();
-        }}
-        style={styles.backBtn}
-      >
-        <Ionicons name="chevron-back" size={20} color="#1F2937" />
+    <View style={styles.row}>
+      <Pressable onPress={() => navigation.goBack()} style={styles.backHit}>
+        <Ionicons name="chevron-back" size={22} color="#0F172A" />
       </Pressable>
       <Text style={styles.title}>{title}</Text>
       <View style={{ width: 32 }} />
@@ -27,24 +22,21 @@ export default function BackHeader({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    paddingBottom: 16,
   },
-  backBtn: {
-    width: 32,
-    height: 32,
+  backHit: {
+    padding: 8,
     borderRadius: 8,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
   },
   title: {
     flex: 1,
-    fontSize: 20,
+    textAlign: "center",
     fontWeight: "800",
     color: "#0F172A",
+    fontSize: 16,
+    marginRight: 32, // balance the back button space
   },
 });

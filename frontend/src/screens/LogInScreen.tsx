@@ -13,25 +13,39 @@ import { getCurrentUser, signIn } from "../storage/userStore";
 
 export default function LogInScreen({ navigation }: any) {
   const [loginEmail, setLoginEmail] = useState("");
+  const [loginPw, setLoginPw] = useState(""); // if you want pw later
   const [statusMsg, setStatusMsg] = useState("");
 
   async function handleLogin() {
-    if (!loginEmail.trim()) {
+    const emailClean = loginEmail.trim().toLowerCase();
+
+    if (!emailClean) {
       setStatusMsg("Please enter your email.");
       return;
     }
 
+    // look at what's currently saved on device
     const existing = await getCurrentUser();
 
-    if (existing && existing.email !== loginEmail.toLowerCase().trim()) {
-      setStatusMsg("No account found with that email. Try Create Account.");
+    // if there's nothing saved at all
+    if (!existing) {
+      setStatusMsg("No account found. Try Create Account.");
       return;
     }
 
-    const profile = await signIn(loginEmail);
+    // try to sign in
+    const profile = await signIn(emailClean);
 
+    if (!profile) {
+      // we HAVE a saved user, but the email doesn't match what they typed
+      setStatusMsg("That email doesn't match. Try again.");
+      return;
+    }
+
+    // success
     setStatusMsg(`Welcome back, ${profile.name}!`);
 
+    // go to Home and wipe history so back won't bounce to auth
     navigation.reset({
       index: 0,
       routes: [{ name: "Home" }],
@@ -56,6 +70,16 @@ export default function LogInScreen({ navigation }: any) {
             autoCapitalize="none"
             value={loginEmail}
             onChangeText={setLoginEmail}
+            style={styles.input}
+          />
+
+          {/* password box now shown, but not enforced yet */}
+          <TextInput
+            placeholder="Password (optional for now)"
+            placeholderTextColor="#94A3B8"
+            secureTextEntry
+            value={loginPw}
+            onChangeText={setLoginPw}
             style={styles.input}
           />
 
