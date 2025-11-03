@@ -17,6 +17,15 @@ import {
   getCurrentUser,
   UserProfile,
 } from "../storage/userStore";
+import { getAllAppointments, type Appointment } from "../services/api/appointments";
+
+type Visit = {
+  id: string;
+  date: string;
+  time: string;
+  provider: string;
+  reason: string;
+};
 
 // Shop Items
 const SHOP_ITEMS = [
@@ -42,6 +51,7 @@ export default function Home({ navigation }: any) {
   const [ownedItems, setOwnedItems] = useState<string[]>([]);
   const [currentOutfit, setCurrentOutfit] = useState<string | null>(null);
   const [userPoints, setUserPoints] = useState(0);
+  const [nextVisit, setNextVisit] = useState<Visit | null>(null);
 
   // Caterpillar animation frames
   const caterpillarFrames = [
@@ -76,6 +86,41 @@ export default function Home({ navigation }: any) {
     if (u) {
       const goalsDone = u.plan.filter((g) => g.done).length;
       setUserPoints(goalsDone * 10);
+    }
+    await loadAppointments();
+  }
+
+  // helper: load next appointment from backend
+  async function loadAppointments() {
+    try {
+      const result = await getAllAppointments();
+      if (result.ok && result.data?.appointments) {
+        // Sort appointments by date and get the next upcoming one
+        const now = new Date();
+        const upcoming = result.data.appointments
+          .map((apt: Appointment) => {
+            const appointmentDate = new Date(apt.appointment_date);
+            return {
+              id: apt.id,
+              date: appointmentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+              time: appointmentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+              provider: apt.provider || "Provider",
+              reason: apt.purpose || "Appointment",
+              rawDate: appointmentDate,
+            };
+          })
+          .filter((v: any) => v.rawDate >= now)
+          .sort((a: any, b: any) => a.rawDate.getTime() - b.rawDate.getTime());
+
+        if (upcoming.length > 0) {
+          const { rawDate, ...visit } = upcoming[0];
+          setNextVisit(visit);
+        } else {
+          setNextVisit(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading appointments:", error);
     }
   }
 
@@ -158,28 +203,27 @@ export default function Home({ navigation }: any) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Header bar */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
+        {/* Header card */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerLeftRow}>
             <View style={styles.avatarBubble}>
               <Text style={styles.avatarText}>
                 {user.name?.[0]?.toUpperCase() || "Y"}
               </Text>
             </View>
-            <View>
-              <Text style={styles.hello}>
-                Hey {user.name?.split(" ")[0] || "there"} 👋
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.helloText}>
+                hey {user.name?.split(" ")[0] || "there"} 👋
               </Text>
-              <Text style={styles.subtitle}>
-                You're doing great
+              <Text style={styles.subHelloText}>
+                here's your health stuff for today
               </Text>
             </View>
           </View>
 
           <View style={styles.pointsPill}>
-            <Text>⚡</Text>
-            <Text style={styles.pointsText}>{userPoints}</Text>
-            <Text style={styles.pointsSub}>pts</Text>
+            <Text style={styles.pointsNum}>{userPoints}</Text>
+            <Text style={styles.pointsPts}>pts</Text>
           </View>
         </View>
 
@@ -194,7 +238,7 @@ export default function Home({ navigation }: any) {
                 Start your self-check
               </Text>
               <Text style={styles.bannerSub}>
-                Take a quick quiz so we know what to help you learn.
+                Quick questions so we know what to help you learn
               </Text>
             </View>
             <Ionicons
@@ -209,7 +253,7 @@ export default function Home({ navigation }: any) {
               <View>
                 <Text style={styles.cardTitle}>This Week</Text>
                 <Text style={styles.muted}>
-                  Keep up the momentum!
+                  Keep building your independence.
                 </Text>
               </View>
               <View style={styles.ring}>
@@ -266,32 +310,53 @@ export default function Home({ navigation }: any) {
         {/* Coming Up */}
         <Text style={styles.sectionTitle}>Coming Up</Text>
         <View style={styles.card}>
-          <Text style={styles.cardSubtitle}>
-            Next Appointment
-          </Text>
+          {nextVisit ? (
+            <>
+              <Text style={styles.cardSubtitle}>
+                Next Appointment
+              </Text>
 
-          <Row icon="calendar-outline" text="Tuesday, Oct 29" />
-          <Row icon="time-outline" text="3:00 PM" />
-          <Row icon="person-outline" text="Dr. Nguyen" />
+              <Row icon="calendar-outline" text={nextVisit.date} />
+              <Row icon="time-outline" text={nextVisit.time} />
+              <Row icon="person-outline" text={nextVisit.provider} />
 
-          <Text style={[styles.muted, { marginTop: 6 }]}>
-            Check-up
-          </Text>
+              <Text style={[styles.muted, { marginTop: 6 }]}>
+                {nextVisit.reason}
+              </Text>
 
-          <Pressable
-            style={[styles.primaryBtn, { marginTop: 14 }]}
-            onPress={() => navigation.navigate("Appointments")}
-          >
-            <Text style={styles.primaryBtnText}>
-              Start Prep  →
-            </Text>
-          </Pressable>
+              <Pressable
+                style={[styles.primaryBtn, { marginTop: 14 }]}
+                onPress={() => navigation.navigate("Appointments")}
+              >
+                <Text style={styles.primaryBtnText}>
+                  Start Prep  →
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.cardSubtitle}>
+                No Upcoming Appointments
+              </Text>
+              <Text style={styles.muted}>
+                Add your next appointment to get prepared.
+              </Text>
+              <Pressable
+                style={[styles.primaryBtn, { marginTop: 14 }]}
+                onPress={() => navigation.navigate("Appointments", { add: true })}
+              >
+                <Text style={styles.primaryBtnText}>
+                  Add Appointment  →
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
 
         {/* To-Do / Goals */}
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>
-            Your Goals
+            Your Skills
           </Text>
           <View style={styles.itemsPill}>
             <Text style={styles.itemsPillText}>
@@ -303,7 +368,7 @@ export default function Home({ navigation }: any) {
         {remainingGoals.length === 0 ? (
           <View style={styles.card}>
             <Text style={styles.muted}>
-              You've finished everything in your plan 🎉
+              You're caught up on everything in your plan.
             </Text>
             <Pressable
               style={[
@@ -326,7 +391,7 @@ export default function Home({ navigation }: any) {
                   <View style={styles.todoLine1}>
                     <View style={styles.chip}>
                       <Text style={styles.chipText}>
-                        Goal
+                        next step
                       </Text>
                     </View>
                   </View>
@@ -343,7 +408,7 @@ export default function Home({ navigation }: any) {
                   }
                 >
                   <Text style={styles.startBtnText}>
-                    Work on it
+                    Open plan
                   </Text>
                 </Pressable>
               </View>
@@ -409,6 +474,20 @@ export default function Home({ navigation }: any) {
             onPress={() => navigation.navigate("Learn")}
           />
         </View>
+
+        {/* Shop/Rewards Card */}
+        <Pressable
+          style={styles.shopCard}
+          onPress={() => setShowShop(true)}
+        >
+          <View style={styles.shopCardLeft}>
+            <Text style={styles.shopCardTitle}>Shop / Rewards</Text>
+            <Text style={styles.shopCardSub}>
+              Spend your points on items for your caterpillar
+            </Text>
+          </View>
+          <Ionicons name="arrow-forward-circle" size={28} color="white" />
+        </Pressable>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -575,16 +654,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  header: {
+  headerCard: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "white",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 16,
+    alignItems: "center",
   },
-  headerLeft: {
+  headerLeftRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flexShrink: 1,
   },
   avatarBubble: {
     backgroundColor: "#E0F2FE",
@@ -598,32 +684,37 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0F172A",
   },
-  hello: {
-    fontSize: 20,
+  helloText: {
+    fontSize: 18,
     fontWeight: "800",
     color: "#0F172A",
   },
-  subtitle: {
+  subHelloText: {
     color: "#64748B",
-    marginTop: 2,
+    fontSize: 14,
+    fontWeight: "600",
   },
   pointsPill: {
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: "row",
+    paddingVertical: 10,
+    minWidth: 60,
     alignItems: "center",
-    gap: 6,
   },
-  pointsText: {
+  pointsNum: {
+    color: "white",
     fontWeight: "800",
-    color: "#0F172A",
+    fontSize: 18,
+    lineHeight: 20,
+    textAlign: "center",
   },
-  pointsSub: {
-    color: "#64748B",
-    marginLeft: 2,
+  pointsPts: {
+    color: "white",
+    fontWeight: "600",
     fontSize: 12,
+    lineHeight: 14,
+    textAlign: "center",
   },
 
   assessmentBanner: {
@@ -657,6 +748,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   rowBetween: {
     flexDirection: "row",
@@ -826,12 +919,14 @@ const styles = StyleSheet.create({
 
   quickGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 14,
     gap: 10,
   },
   square: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "48%",
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
@@ -841,6 +936,34 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "700",
     textAlign: "center",
+  },
+
+  shopCard: {
+    backgroundColor: "#7C3AED",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#1F2937",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  shopCardLeft: {
+    flex: 1,
+  },
+  shopCardTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "white",
+    marginBottom: 4,
+  },
+  shopCardSub: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
+    fontWeight: "600",
   },
 
   // Modal styles
