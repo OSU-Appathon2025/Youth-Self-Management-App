@@ -440,26 +440,47 @@ export default function Home({ navigation }: any) {
         {/* Coming Up */}
         <Text style={styles.sectionTitle}>Coming Up</Text>
         <View style={styles.card}>
-          <Text style={styles.cardSubtitle}>
-            Next Appointment
-          </Text>
+          {nextVisit ? (
+            <>
+              <Text style={styles.cardSubtitle}>
+                Next Appointment
+              </Text>
 
-          <Row icon="calendar-outline" text="Tuesday, Oct 29" />
-          <Row icon="time-outline" text="3:00 PM" />
-          <Row icon="person-outline" text="Dr. Nguyen" />
+              <Row icon="calendar-outline" text={nextVisit.date} />
+              <Row icon="time-outline" text={nextVisit.time} />
+              <Row icon="person-outline" text={nextVisit.provider} />
 
-          <Text style={[styles.muted, { marginTop: 6 }]}>
-            Check-up
-          </Text>
+              <Text style={[styles.muted, { marginTop: 6 }]}>
+                {nextVisit.reason}
+              </Text>
 
-          <Pressable
-            style={[styles.primaryBtn, { marginTop: 14 }]}
-            onPress={() => navigation.navigate("Appointments")}
-          >
-            <Text style={styles.primaryBtnText}>
-              Start Prep  →
-            </Text>
-          </Pressable>
+              <Pressable
+                style={[styles.primaryBtn, { marginTop: 14 }]}
+                onPress={() => navigation.navigate("Appointments")}
+              >
+                <Text style={styles.primaryBtnText}>
+                  Start Prep  →
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.cardSubtitle}>
+                No Upcoming Appointments
+              </Text>
+              <Text style={styles.muted}>
+                Add your next appointment to get prepared.
+              </Text>
+              <Pressable
+                style={[styles.primaryBtn, { marginTop: 14 }]}
+                onPress={() => navigation.navigate("Appointments", { add: true })}
+              >
+                <Text style={styles.primaryBtnText}>
+                  Add Appointment  →
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
 
         {/* To-Do / Goals */}
