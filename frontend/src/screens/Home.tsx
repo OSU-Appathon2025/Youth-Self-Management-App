@@ -18,6 +18,7 @@ import {
   UserProfile,
 } from "../storage/userStore";
 import { getAllAppointments, type Appointment } from "../services/api/appointments";
+import { getPoints } from "../storage/progressStore";
 
 type Visit = {
   id: string;
@@ -83,10 +84,11 @@ export default function Home({ navigation }: any) {
   async function load() {
     const u = await getCurrentUser();
     setUser(u);
-    if (u) {
-      const goalsDone = u.plan.filter((g) => g.done).length;
-      setUserPoints(goalsDone * 10);
-    }
+
+    // Load points from progressStore instead of calculating from plan
+    const points = await getPoints();
+    setUserPoints(points);
+
     await loadAppointments();
   }
 
@@ -1000,14 +1002,17 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: "80%",
+    paddingTop: 20,
+    paddingBottom: 20,
+    maxHeight: "85%",
+    height: "85%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
   modalTitle: {
     fontSize: 24,
@@ -1019,6 +1024,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 16,
+    marginHorizontal: 20,
   },
   pointsDisplayText: {
     fontSize: 16,
@@ -1028,6 +1034,8 @@ const styles = StyleSheet.create({
   },
   shopGrid: {
     flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   shopItem: {
     flexDirection: "row",

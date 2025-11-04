@@ -289,6 +289,14 @@ export async function awardPoints(amount: number) {
 }
 
 /**
+ * Get current points total
+ */
+export async function getPoints(): Promise<number> {
+  const full = await readProgress();
+  return full.points;
+}
+
+/**
  * Save which topics they struggle with (onboarding quiz),
  * and average topic scores.
  */

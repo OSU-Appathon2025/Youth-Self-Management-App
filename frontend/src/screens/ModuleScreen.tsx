@@ -50,14 +50,17 @@ export default function ModuleScreen({ route, navigation }: any) {
 
   async function completeLesson(lessonId: string) {
     if (!topic) return;
-    
+
+    // Don't do anything if already completed
+    if (done[lessonId]) return;
+
     // 1. mark lesson complete in storage
     const newPlan = await markLessonDone(lessonId, topic);
 
     // 2. update local state so UI re-renders
     setDone(newPlan.lessonsDone || {});
 
-    // 3. give a tiny reward
+    // 3. give a tiny reward (only once)
     await awardPoints(5);
   }
 
