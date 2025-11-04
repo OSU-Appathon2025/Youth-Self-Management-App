@@ -2,10 +2,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Local backend URL - using computer's IP address for Expo Go
-export const API_BASE_URL = "http://172.27.127.110:3000/api";
+export const API_BASE_URL = "http://100.69.38.95:3000/api";
 
 // For production/deployed backend: "https://youth-self-management-app.onrender.com/api"
-// For localhost when using web or emulator: "http://localhost:3000/api"
+// For localhost when using web or emulator: "http://192.0.0.2:3000/api";
 
 const TOKEN_KEY = "ysma:auth_token";
 const REFRESH_TOKEN_KEY = "ysma:refresh_token";

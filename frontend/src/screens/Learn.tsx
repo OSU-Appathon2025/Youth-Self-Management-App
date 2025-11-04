@@ -1,4 +1,4 @@
-// frontend/src/screens/Learn.tsx
+/// frontend/src/screens/Learn.tsx
 import React from "react";
 import {
   SafeAreaView,
@@ -43,8 +43,13 @@ export default function Learn({ navigation }: any) {
                 pressed && { backgroundColor: "#F8FAFF" },
               ]}
               onPress={() => {
-                // go to TopicDetails screen with this topic id
-                navigation.navigate("TopicDetails", { topic: mod.id });
+                // Navigate to TopicDetails with the module's video source
+                navigation.navigate("TopicDetails", { 
+                  topicId: mod.id,
+                  title: mod.title,
+                  subtitle: mod.description,
+                  videoSource: mod.videoSource, // Pass the video source
+                });
               }}
             >
               <View style={styles.cardTopRow}>
