@@ -792,14 +792,14 @@ export default function Home({ navigation }: any) {
       </Modal>
 
       {/* Chatbot Button */}
-      <Pressable
+      {/* <Pressable
         style={styles.chatbotButton}
         onPress={() => setChatVisible(true)}
       >
         <Ionicons name="chatbubble-ellipses" size={26} color="white" />
-      </Pressable>
+      </Pressable> */}
 
-      {/* Chat Modal */}
+      {/* Chat Modal
       {chatVisible && (
         <View style={styles.chatModal}>
           <View style={styles.chatHeader}>
@@ -844,7 +844,7 @@ export default function Home({ navigation }: any) {
             </Pressable>
           </View>
         </View>
-      )}
+      )} */}
     </SafeAreaView>
   );
 }
