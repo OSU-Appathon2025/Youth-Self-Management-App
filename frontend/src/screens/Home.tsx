@@ -93,10 +93,17 @@ export default function Home({ navigation }: any) {
   // helper: load next appointment from backend
   async function loadAppointments() {
     try {
+      console.log("Loading appointments...");
       const result = await getAllAppointments();
+      console.log("getAllAppointments result:", result);
+
       if (result.ok && result.data?.appointments) {
+        console.log("Appointments from backend:", result.data.appointments);
+
         // Sort appointments by date and get the next upcoming one
         const now = new Date();
+        console.log("Current time:", now);
+
         const upcoming = result.data.appointments
           .map((apt: Appointment) => {
             const appointmentDate = new Date(apt.appointment_date);
@@ -112,12 +119,18 @@ export default function Home({ navigation }: any) {
           .filter((v: any) => v.rawDate >= now)
           .sort((a: any, b: any) => a.rawDate.getTime() - b.rawDate.getTime());
 
+        console.log("Upcoming appointments after filtering:", upcoming);
+
         if (upcoming.length > 0) {
           const { rawDate, ...visit } = upcoming[0];
+          console.log("Setting next visit:", visit);
           setNextVisit(visit);
         } else {
+          console.log("No upcoming appointments found");
           setNextVisit(null);
         }
+      } else {
+        console.log("No appointments data in result");
       }
     } catch (error) {
       console.error("Error loading appointments:", error);
@@ -965,14 +978,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   shopBtn: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingVertical: 10,
-    borderRadius: 12,
+    backgroundColor: "white",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
     alignItems: "center",
   },
   shopBtnText: {
-    color: "white",
+    color: "#7C3AED",
     fontWeight: "800",
+    fontSize: 15,
   },
 
   // Modal styles

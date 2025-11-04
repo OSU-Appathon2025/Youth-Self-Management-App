@@ -1,13 +1,11 @@
 // Core API client and utilities
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// CHANGE THIS to your computer's local IP address
-// Find it by running 'ipconfig' in terminal (look for IPv4 Address)
-// OR use your backend deployment URL
-export const API_BASE_URL = "http://localhost:3000/api";
+// Local backend URL - using computer's IP address for Expo Go
+export const API_BASE_URL = "http://172.27.127.110:3000/api";
 
-// For testing on physical device, use: "http://YOUR_IP_ADDRESS:3000/api"
-// Example: "http://192.168.1.100:3000/api"
+// For production/deployed backend: "https://youth-self-management-app.onrender.com/api"
+// For localhost when using web or emulator: "http://localhost:3000/api"
 
 const TOKEN_KEY = "ysma:auth_token";
 const REFRESH_TOKEN_KEY = "ysma:refresh_token";
