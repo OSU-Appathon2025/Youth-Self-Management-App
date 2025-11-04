@@ -354,7 +354,7 @@ export default function Home({ navigation }: any) {
         {needsAssessment ? (
           <Pressable
             style={styles.assessmentBanner}
-            onPress={() => navigation.navigate("Assess")}
+            onPress={() => navigation.navigate("FinalAssessment")}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.bannerTitle}>
