@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -6,9 +6,58 @@ import {
   Text,
   Pressable,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
+import { getCurrentUser } from "../storage/userStore";
+import { getAuthToken } from "../services/api/client";
 
 export default function AuthLandingScreen({ navigation }: any) {
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  async function checkAuth() {
+    const token = await getAuthToken();
+    const user = await getCurrentUser();
+
+    // If we have both a token and a user, verify token is valid by calling backend
+    if (token && user) {
+      try {
+        // Try to fetch user profile to verify token is valid
+        const { getUserProfile } = await import("../services/api/user");
+        const result = await getUserProfile();
+
+        if (result.ok) {
+          // Token is valid, go to Home
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Home" }],
+          });
+          return;
+        }
+      } catch (error) {
+        console.log("Token validation failed:", error);
+      }
+
+      // If we get here, token is invalid - clear it and show login
+      const { clearAuthTokens } = await import("../services/api/client");
+      await clearAuthTokens();
+    }
+
+    // Show the auth options
+    setChecking(false);
+  }
+
+  if (checking) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -20,14 +69,14 @@ export default function AuthLandingScreen({ navigation }: any) {
 
           <Pressable
             style={[styles.bigBtn, { backgroundColor: "#2563EB" }]}
-            onPress={() => navigation.navigate("CreateAccount")}
+            onPress={() => navigation.navigate("CreateAccountScreen")}
           >
             <Text style={styles.bigBtnText}>I'm new – Create Account</Text>
           </Pressable>
 
           <Pressable
             style={[styles.bigBtn, { backgroundColor: "#0F172A" }]}
-            onPress={() => navigation.navigate("LogIn")}
+            onPress={() => navigation.navigate("LogInScreen")}
           >
             <Text style={styles.bigBtnText}>I already have an account</Text>
           </Pressable>

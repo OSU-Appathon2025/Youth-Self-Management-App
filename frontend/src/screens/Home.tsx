@@ -231,7 +231,7 @@ export default function Home({ navigation }: any) {
         {needsAssessment ? (
           <Pressable
             style={styles.assessmentBanner}
-            onPress={() => navigation.navigate("Assess")}
+            onPress={() => navigation.navigate("FinalAssessment")}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.bannerTitle}>
@@ -475,19 +475,23 @@ export default function Home({ navigation }: any) {
           />
         </View>
 
-        {/* Shop/Rewards Card */}
-        <Pressable
-          style={styles.shopCard}
-          onPress={() => setShowShop(true)}
-        >
-          <View style={styles.shopCardLeft}>
-            <Text style={styles.shopCardTitle}>Shop / Rewards</Text>
-            <Text style={styles.shopCardSub}>
-              Spend your points on items for your caterpillar
+        {/* Shop / Rewards */}
+        <View style={styles.shopCard}>
+          <Text style={styles.shopTitle}>
+            Rewards
+          </Text>
+          <Text style={styles.shopSub}>
+            You have {userPoints} points to use.
+          </Text>
+          <Pressable
+            style={styles.shopBtn}
+            onPress={() => setShowShop(true)}
+          >
+            <Text style={styles.shopBtnText}>
+              Open Rewards
             </Text>
-          </View>
-          <Ionicons name="arrow-forward-circle" size={28} color="white" />
-        </Pressable>
+          </Pressable>
+        </View>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -943,27 +947,32 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginTop: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     shadowColor: "#1F2937",
     shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-  shopCardLeft: {
-    flex: 1,
-  },
-  shopCardTitle: {
+  shopTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: "white",
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  shopCardSub: {
+  shopSub: {
     fontSize: 14,
     color: "rgba(255,255,255,0.9)",
     fontWeight: "600",
+    marginBottom: 12,
+  },
+  shopBtn: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  shopBtnText: {
+    color: "white",
+    fontWeight: "800",
   },
 
   // Modal styles

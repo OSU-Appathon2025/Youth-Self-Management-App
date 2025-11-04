@@ -48,7 +48,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Home"
+        initialRouteName="AuthLandingScreen"
         screenOptions={{
           headerShown: false,
         }}
