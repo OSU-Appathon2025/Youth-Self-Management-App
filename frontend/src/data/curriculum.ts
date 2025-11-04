@@ -21,6 +21,7 @@ export type Module = {
   title: string;
   description: string;
   lessons: { id: string; title: string }[];
+  videoSource?: any;      // Video source for the module
 };
 
 export const TOPIC_TITLES: Record<TopicId, string> = {
@@ -52,7 +53,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
     choices: [
       { id: "a", label: "Front of card, labeled 'Member ID'", correct: true },
       { id: "b", label: "Back, near the barcode" },
-      { id: "c", label: "It’s your birthday" },
+      { id: "c", label: "It's your birthday" },
       { id: "d", label: "There is no Member ID" },
     ],
   },
@@ -81,7 +82,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
   {
     id: "q5",
     topic: "appointments",
-    prompt: "Before an appointment, what’s most helpful?",
+    prompt: "Before an appointment, what's most helpful?",
     choices: [
       { id: "a", label: "Bring questions & ID/insurance card", correct: true },
       { id: "b", label: "Skip eating for 3 days" },
@@ -107,7 +108,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
     choices: [
       { id: "a", label: "List of allergies" },
       { id: "b", label: "Shots you received", correct: true },
-      { id: "c", label: "Doctor’s lunch menu" },
+      { id: "c", label: "Doctor's lunch menu" },
       { id: "d", label: "Payment history" },
     ],
   },
@@ -119,7 +120,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
       { id: "a", label: "Patient portal documents", correct: true },
       { id: "b", label: "From the parking lot" },
       { id: "c", label: "From the TV remote" },
-      { id: "d", label: "You can’t" },
+      { id: "d", label: "You can't" },
     ],
   },
   {
@@ -136,7 +137,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
   {
     id: "q10",
     topic: "rights",
-    prompt: "If you’re 18+, you can…",
+    prompt: "If you're 18+, you can…",
     choices: [
       { id: "a", label: "Manage your own care & records", correct: true },
       { id: "b", label: "Ban doctors forever" },
@@ -146,7 +147,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
   },
   { id: "q11", topic: "payments", prompt: "A bill shows…", choices: [
       { id: "a", label: "Services & amounts you owe", correct: true },
-      { id: "b", label: "Doctor’s favorite color" },
+      { id: "b", label: "Doctor's favorite color" },
       { id: "c", label: "Friend list" },
       { id: "d", label: "Memes" },
     ]},
@@ -159,7 +160,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
   { id: "q13", topic: "insurance", prompt: "Deductible means…", choices: [
       { id: "a", label: "Amount you pay before insurance helps", correct: true },
       { id: "b", label: "Your monthly fee" },
-      { id: "c", label: "The doctor’s tip" },
+      { id: "c", label: "The doctor's tip" },
       { id: "d", label: "Parking fee" },
     ]},
   { id: "q14", topic: "meds", prompt: "Medication label shows…", choices: [
@@ -168,7 +169,7 @@ export const ONBOARDING_QUESTIONS: Question[] = [
       { id: "c", label: "Random emojis" },
       { id: "d", label: "Nothing important" },
     ]},
-  { id: "q15", topic: "appointments", prompt: "If you’re late or can’t go…", choices: [
+  { id: "q15", topic: "appointments", prompt: "If you're late or can't go…", choices: [
       { id: "a", label: "Call to reschedule", correct: true },
       { id: "b", label: "Ignore it" },
       { id: "c", label: "Send a meme" },
@@ -194,12 +195,12 @@ export const ONBOARDING_QUESTIONS: Question[] = [
     ]},
   { id: "q19", topic: "insurance", prompt: "Prior authorization is…", choices: [
       { id: "a", label: "Insurance approval before service", correct: true },
-      { id: "b", label: "Your dad’s signature" },
+      { id: "b", label: "Your dad's signature" },
       { id: "c", label: "Snack approval" },
       { id: "d", label: "Spam" },
     ]},
   { id: "q20", topic: "meds", prompt: "Keep meds safe by…", choices: [
-      { id: "a", label: "Storing as labeled; don’t share", correct: true },
+      { id: "a", label: "Storing as labeled; don't share", correct: true },
       { id: "b", label: "Sharing with friends" },
       { id: "c", label: "Leaving in the car heat" },
       { id: "d", label: "Guessing doses" },
@@ -211,6 +212,7 @@ export const MODULES: Module[] = [
     id: "insurance",
     title: TOPIC_TITLES.insurance,
     description: "Know your card, copays, deductibles & how to get help.",
+    videoSource: require('../../assets/3.mp4'), // 3.mp4 = insurance basics
     lessons: [
       { id: "i1", title: "Your Insurance Card" },
       { id: "i2", title: "Copays & Deductible" },
@@ -221,6 +223,7 @@ export const MODULES: Module[] = [
     id: "meds",
     title: TOPIC_TITLES.meds,
     description: "Take meds safely, manage refills, ask questions.",
+    videoSource: require('../../assets/1.mp4'), // 1.mp4 = medications
     lessons: [
       { id: "m1", title: "Reading a Label" },
       { id: "m2", title: "Missed Doses" },
@@ -231,6 +234,7 @@ export const MODULES: Module[] = [
     id: "appointments",
     title: TOPIC_TITLES.appointments,
     description: "Prep, questions, rescheduling, portals & calendars.",
+    videoSource: require('../../assets/2.mp4'), // 2.mp4 = appointments
     lessons: [
       { id: "a1", title: "Before Your Visit" },
       { id: "a2", title: "Questions to Ask" },
@@ -242,7 +246,7 @@ export const MODULES: Module[] = [
     title: TOPIC_TITLES.records,
     description: "Immunizations, visit summaries, sharing with others.",
     lessons: [
-      { id: "r1", title: "What’s in My Record" },
+      { id: "r1", title: "What's in My Record" },
       { id: "r2", title: "Download a Summary" },
       { id: "r3", title: "Sharing Safely" },
     ],

@@ -1,187 +1,186 @@
-// frontend/src/screens/Appointments.tsx
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  SafeAreaView,
-  ScrollView,
   View,
   Text,
-  TextInput,
   Pressable,
   StyleSheet,
+  SafeAreaView,
+  ScrollView,
   Alert,
 } from "react-native";
 import BackHeader from "../components/BackHeader";
-import {
-  getVisits,
-  addVisit,
-  removeVisit,
-  Visit,
-} from "../storage/progressStore";
+import { setHasCompletedAssessment, awardPoints } from "../storage/progressStore";
 
-export default function Appointments({ navigation }: any) {
-  // form state for "Add a visit"
-  const [date, setDate] = useState("2025-11-13");
-  const [time, setTime] = useState("12:30 pm");
-  const [provider, setProvider] = useState("Dr. Smith");
-  const [reason, setReason] = useState("Check-up");
+// Initial assessment questions
+const ASSESSMENT_QUESTIONS = [
+  {
+    id: "q1",
+    text: "Have you ever scheduled your own medical appointment?",
+    choices: [
+      { id: "q1a", text: "Yes, I do it myself", points: 3 },
+      { id: "q1b", text: "Sometimes with help", points: 2 },
+      { id: "q1c", text: "No, someone else does it", points: 1 },
+    ],
+  },
+  {
+    id: "q2",
+    text: "Do you know how to refill your prescriptions?",
+    choices: [
+      { id: "q2a", text: "Yes, I can do it independently", points: 3 },
+      { id: "q2b", text: "I need some help", points: 2 },
+      { id: "q2c", text: "I don't know how", points: 1 },
+    ],
+  },
+  {
+    id: "q3",
+    text: "Can you explain what your insurance covers?",
+    choices: [
+      { id: "q3a", text: "Yes, I understand my coverage", points: 3 },
+      { id: "q3b", text: "I know a little", points: 2 },
+      { id: "q3c", text: "I don't understand it", points: 1 },
+    ],
+  },
+  {
+    id: "q4",
+    text: "Do you know what to do if you receive a medical bill?",
+    choices: [
+      { id: "q4a", text: "Yes, I know how to read and pay it", points: 3 },
+      { id: "q4b", text: "I'm not sure", points: 2 },
+      { id: "q4c", text: "No, someone else handles it", points: 1 },
+    ],
+  },
+  {
+    id: "q5",
+    text: "Can you describe your medical conditions to a new doctor?",
+    choices: [
+      { id: "q5a", text: "Yes, I can explain everything", points: 3 },
+      { id: "q5b", text: "I know some but not all", points: 2 },
+      { id: "q5c", text: "I don't know my conditions well", points: 1 },
+    ],
+  },
+];
 
-  // saved visits
-  const [visits, setVisits] = useState<Visit[]>([]);
+export default function Assess({ navigation }: any) {
+  const questions = useMemo(() => ASSESSMENT_QUESTIONS.slice(), []);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
 
-  // load visits on mount
-  useEffect(() => {
-    (async () => {
-      const all = await getVisits();
-      setVisits(all);
-    })();
-  }, []);
+  function selectAnswer(questionId: string, choiceId: string) {
+    if (submitted) return;
+    setAnswers((prev) => ({ ...prev, [questionId]: choiceId }));
+  }
 
-  async function handleSaveVisit() {
-    if (!date.trim() || !time.trim() || !provider.trim() || !reason.trim()) {
-      Alert.alert("Missing info", "Please fill out all fields first.");
+  async function handleSubmit() {
+    if (submitted) return;
+
+    // Check if all questions are answered
+    const unanswered = questions.filter((q) => !answers[q.id]);
+    if (unanswered.length > 0) {
+      Alert.alert("Incomplete", "Please answer all questions before submitting.");
       return;
     }
 
-    const newList = await addVisit({
-      date,
-      time,
-      provider,
-      reason,
+    // Calculate total score
+    let totalPoints = 0;
+    questions.forEach((q) => {
+      const chosenId = answers[q.id];
+      const choice = q.choices.find((c) => c.id === chosenId);
+      if (choice) {
+        totalPoints += choice.points;
+      }
     });
 
-    setVisits(newList);
+    const maxPoints = questions.length * 3;
+    const percentage = Math.round((totalPoints / maxPoints) * 100);
 
-    Alert.alert("Saved ✅", "Your visit was added.");
+    setSubmitted(true);
 
-    // you can also clear fields after save if you want
-    // setDate("");
-    // setTime("");
-    // setProvider("");
-    // setReason("");
-  }
+    // Mark assessment as completed
+    try {
+      await setHasCompletedAssessment(true);
+      // Award points for completing assessment
+      await awardPoints(50);
+    } catch (e) {
+      console.error("Error saving assessment:", e);
+    }
 
-  async function handleDeleteVisit(id: string) {
-    const newList = await removeVisit(id);
-    setVisits(newList);
-  }
-
-  // Pretend actions for "Prep" and "Reflection"
-  function goPrep(v: Visit) {
-    // for now just alert, later this can go to a prep checklist screen
-    Alert.alert("Prep", `Get ready for ${v.provider} (${v.reason})`);
-  }
-
-  function goReflection(v: Visit) {
+    // Show results
     Alert.alert(
-      "Reflection",
-      `After ${v.provider}: How did it go? What do you still need?`
+      "Assessment Complete! 🎉",
+      `You scored ${percentage}%\n\nYou earned 50 points! Now let's create your personalized learning plan.`,
+      [
+        {
+          text: "Continue",
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Home" }],
+            });
+          },
+        },
+      ]
     );
-  }
-
-  function goLearnTopic() {
-    // this is the "Learn" button you wanted.
-    // send them to Learn screen (or OnboardingQuiz, whatever you want)
-    navigation.navigate("Learn");
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
-        <BackHeader title="Appointments" navigation={navigation} />
+        <BackHeader title="Self-Check" navigation={navigation} />
 
-        {/* ADD A VISIT */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Add a visit</Text>
-
-          <View style={styles.rowSplit}>
-            <View style={{ flex: 1, paddingRight: 8 }}>
-              <Text style={styles.label}>Date</Text>
-              <TextInput
-                value={date}
-                onChangeText={setDate}
-                style={styles.input}
-              />
-            </View>
-
-            <View style={{ flex: 1, paddingLeft: 8 }}>
-              <Text style={styles.label}>Time</Text>
-              <TextInput
-                value={time}
-                onChangeText={setTime}
-                style={styles.input}
-              />
-            </View>
-          </View>
-
-          <Text style={styles.label}>Provider</Text>
-          <TextInput
-            value={provider}
-            onChangeText={setProvider}
-            style={styles.input}
-          />
-
-          <Text style={styles.label}>Reason</Text>
-          <TextInput
-            value={reason}
-            onChangeText={setReason}
-            style={styles.input}
-          />
-
-          <Pressable style={styles.saveBtn} onPress={handleSaveVisit}>
-            <Text style={styles.saveBtnText}>Save Visit</Text>
-          </Pressable>
+        <View style={styles.introCard}>
+          <Text style={styles.introTitle}>Let's see where you're at! 📋</Text>
+          <Text style={styles.introText}>
+            Answer these questions honestly. This helps us create a personalized plan just for you.
+            There are no wrong answers!
+          </Text>
         </View>
 
-        {/* YOUR VISITS */}
-        <Text style={styles.sectionHeader}>Your visits</Text>
-
-        {visits.map((v) => (
-          <View key={v.id} style={styles.visitCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.visitTitle}>
-                {v.date} • {v.time}
-              </Text>
-              <Text style={styles.visitRow}>
-                <Text style={styles.visitLabel}>Provider: </Text>
-                {v.provider}
-              </Text>
-              <Text style={styles.visitRow}>
-                <Text style={styles.visitLabel}>Reason: </Text>
-                {v.reason}
-              </Text>
-
-              <View style={styles.visitActionsRow}>
-                <Pressable style={styles.tagBlue} onPress={() => goPrep(v)}>
-                  <Text style={styles.tagBlueText}>Prep</Text>
-                </Pressable>
-
-                <Pressable
-                  style={styles.tagGreen}
-                  onPress={() => goReflection(v)}
-                >
-                  <Text style={styles.tagGreenText}>Reflection</Text>
-                </Pressable>
-
-                <Pressable style={styles.tagPurple} onPress={goLearnTopic}>
-                  <Text style={styles.tagPurpleText}>Learn</Text>
-                </Pressable>
+        {questions.map((q, idx) => (
+          <View key={q.id} style={styles.questionCard}>
+            <View style={styles.questionHeader}>
+              <View style={styles.questionNumber}>
+                <Text style={styles.questionNumberText}>{idx + 1}</Text>
               </View>
+              <Text style={styles.questionText}>{q.text}</Text>
             </View>
 
-            <View style={styles.sideCol}>
-              <Pressable style={styles.statusPill}>
-                <Text style={styles.statusText}>Upcoming</Text>
-              </Pressable>
+            <View style={styles.choicesContainer}>
+              {q.choices.map((choice) => {
+                const isSelected = answers[q.id] === choice.id;
 
-              <Pressable
-                style={styles.deleteBtn}
-                onPress={() => handleDeleteVisit(v.id)}
-              >
-                <Text style={styles.deleteText}>Delete</Text>
-              </Pressable>
+                return (
+                  <Pressable
+                    key={choice.id}
+                    onPress={() => selectAnswer(q.id, choice.id)}
+                    style={[
+                      styles.choiceButton,
+                      isSelected && styles.choiceButtonSelected,
+                    ]}
+                  >
+                    <View style={[
+                      styles.radio,
+                      isSelected && styles.radioSelected,
+                    ]}>
+                      {isSelected && <View style={styles.radioDot} />}
+                    </View>
+                    <Text style={[
+                      styles.choiceText,
+                      isSelected && styles.choiceTextSelected,
+                    ]}>
+                      {choice.text}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         ))}
+
+        {!submitted && (
+          <Pressable style={styles.submitButton} onPress={handleSubmit}>
+            <Text style={styles.submitButtonText}>Submit Assessment</Text>
+          </Pressable>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -190,9 +189,29 @@ export default function Appointments({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-
-  card: {
+  container: {
+    padding: 16,
+  },
+  introCard: {
+    backgroundColor: "#DBEAFE",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: "#93C5FD",
+  },
+  introTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1E3A8A",
+    marginBottom: 8,
+  },
+  introText: {
+    fontSize: 14,
+    color: "#1E40AF",
+    lineHeight: 20,
+  },
+  questionCard: {
     backgroundColor: "white",
     borderRadius: 16,
     padding: 16,
@@ -202,148 +221,87 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
   },
-
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0F172A",
-    marginBottom: 12,
-  },
-
-  rowSplit: {
+  questionHeader: {
     flexDirection: "row",
-    marginBottom: 12,
+    alignItems: "flex-start",
+    marginBottom: 16,
+    gap: 12,
   },
-
-  label: {
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 4,
-    fontSize: 14,
-  },
-
-  input: {
-    borderWidth: 2,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "#0F172A",
-    fontWeight: "600",
-    backgroundColor: "#F8FAFC",
-    marginBottom: 12,
-  },
-
-  saveBtn: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
-    paddingVertical: 12,
+  questionNumber: {
+    backgroundColor: "#EEF2FF",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
   },
-  saveBtnText: {
-    color: "white",
-    fontWeight: "800",
-  },
-
-  sectionHeader: {
+  questionNumberText: {
     fontSize: 16,
     fontWeight: "800",
+    color: "#2563EB",
+  },
+  questionText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
     color: "#0F172A",
-    marginBottom: 8,
+    lineHeight: 22,
   },
-
-  visitCard: {
+  choicesContainer: {
+    gap: 10,
+  },
+  choiceButton: {
     flexDirection: "row",
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FAFAFA",
+    gap: 12,
   },
-
-  visitTitle: {
-    fontWeight: "800",
-    color: "#0F172A",
-    marginBottom: 6,
-  },
-  visitRow: {
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  visitLabel: {
-    fontWeight: "800",
-    color: "#1F2937",
-  },
-
-  visitActionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-
-  tagBlue: {
-    backgroundColor: "#EEF2FF",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  tagBlueText: {
-    color: "#1D4ED8",
-    fontWeight: "700",
-  },
-
-  tagGreen: {
-    backgroundColor: "#ECFDF5",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  tagGreenText: {
-    color: "#065F46",
-    fontWeight: "700",
-  },
-
-  tagPurple: {
-    backgroundColor: "#F3E8FF",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  tagPurpleText: {
-    color: "#6D28D9",
-    fontWeight: "700",
-  },
-
-  sideCol: {
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    marginLeft: 12,
-  },
-
-  statusPill: {
+  choiceButtonSelected: {
+    borderColor: "#2563EB",
     backgroundColor: "#EFF6FF",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 12,
   },
-  statusText: {
-    color: "#1D4ED8",
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioSelected: {
+    borderColor: "#2563EB",
+  },
+  radioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#2563EB",
+  },
+  choiceText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  choiceTextSelected: {
+    color: "#1E40AF",
     fontWeight: "700",
   },
-
-  deleteBtn: {
-    backgroundColor: "#DC2626",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  submitButton: {
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 8,
   },
-  deleteText: {
+  submitButtonText: {
     color: "white",
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
   },
 });

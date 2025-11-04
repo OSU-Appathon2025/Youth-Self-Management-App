@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const API_BASE_URL = "https://youth-self-management-app.onrender.com/api";
 
 // For production/deployed backend: "https://youth-self-management-app.onrender.com/api"
-// For localhost when using web or emulator: "http://localhost:3000/api"
+// For localhost when using web or emulator: "http://192.0.0.2:3000/api";
 
 const TOKEN_KEY = "ysma:auth_token";
 const REFRESH_TOKEN_KEY = "ysma:refresh_token";

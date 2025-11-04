@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { TopicId } from "../data/curriculum";
 import { markLessonDone, awardPoints } from "../storage/progressStore";
+import { Video, ResizeMode } from "expo-av";
 
 // ---- Types ----
 type Choice = { id: string; text: string; correct: boolean };
@@ -21,6 +22,7 @@ type TopicParams = {
   subtitle?: string;
   passPct?: number;          // default 80
   questions?: Question[];    // 3–4+ questions; if missing we use defaults
+  videoSource?: any;         // ✅ Optional video source
 };
 
 const DEFAULT_PASS_PCT = 80;
@@ -74,7 +76,7 @@ const DEFAULT_QUESTIONS: Question[] = [
         text: "Med name, dose, and how often to take it.",
         correct: true,
       },
-      { id: "q4b", text: "Pharmacist’s favorite snack.", correct: false },
+      { id: "q4b", text: "Pharmacist's favorite snack.", correct: false },
       { id: "q4c", text: "Only the pharmacy address.", correct: false },
     ],
   },
@@ -83,13 +85,13 @@ const DEFAULT_QUESTIONS: Question[] = [
 export default function TopicDetails({ navigation, route }: any) {
   // ----- Params / data -----
   const params: TopicParams = route?.params || {};
-  const topicId = (params.topicId ?? "billing") as TopicId; // fallback so it won't crash
-  const title =
-    params.title ?? "I understand bills and payment options.";
+  const topicId = (params.topicId ?? "billing") as TopicId;
+  const title = params.title ?? "I understand bills and payment options.";
   const subtitle =
     params.subtitle ??
-    "Read a bill without panicking. Know what’s covered and what’s your part.";
+    "Read a bill without panicking. Know what's covered and what's your part.";
   const passPct = params.passPct ?? DEFAULT_PASS_PCT;
+  const videoSource = params.videoSource; // ✅ Get video source from params
 
   // Use provided questions if valid, else defaults (need at least 3)
   const questions: Question[] = useMemo(
@@ -142,10 +144,8 @@ export default function TopicDetails({ navigation, route }: any) {
   function markDone() {
     if (!submitted || !passed) return;
     try {
-      // Mark this topic’s quiz as completed in your progress store.
-      // If your store signature is different, adjust here.
-      markLessonDone?.(topicId, topicId);
-      awardPoints?.(50);
+      markLessonDone(topicId);
+      awardPoints(50);
     } catch {}
     Alert.alert("Nice!", `You passed with ${scorePct}% and earned XP.`);
     navigation?.goBack?.();
@@ -164,23 +164,30 @@ export default function TopicDetails({ navigation, route }: any) {
       <Text style={styles.topicHeader}>{title}</Text>
       <Text style={styles.topicSub}>{subtitle}</Text>
 
-      {/* STEP 1: "Video" placeholder (kept simple so the app can't hang) */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Step 1: Watch this</Text>
-        <View style={styles.videoPlaceholder}>
-          <Text style={{ color: "white", fontWeight: "700" }}>[ video placeholder ]</Text>
+      {/* STEP 1: Video (only if videoSource is provided) */}
+      {videoSource && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Step 1: Watch this</Text>
+          <Video
+            source={videoSource}
+            style={styles.videoPlaceholder}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={false}
+          />
+          <Text style={styles.cardHint}>
+            Quick explainer to help you understand this topic better.
+          </Text>
         </View>
-        <Text style={styles.cardHint}>
-          Quick explainer: what a bill shows, how insurance reduces the cost,
-          and what “amount due” actually means.
-        </Text>
-      </View>
+      )}
 
       {/* STEP 2: Key Points */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Step 2: Key things to know</Text>
+        <Text style={styles.cardTitle}>
+          {videoSource ? "Step 2: Key things to know" : "Step 1: Key things to know"}
+        </Text>
         <Text style={styles.cardIntro}>
-          A bill should explain money, not hide it. You’ll usually see:
+          A bill should explain money, not hide it. You'll usually see:
         </Text>
         <View style={styles.bulletList}>
           <Text style={styles.bulletText}>• What happened (visit, test, x-ray)</Text>
@@ -196,7 +203,9 @@ export default function TopicDetails({ navigation, route }: any) {
 
       {/* STEP 3: Quiz */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Step 3: Quick check</Text>
+        <Text style={styles.cardTitle}>
+          {videoSource ? "Step 3: Quick check" : "Step 2: Quick check"}
+        </Text>
         <Text style={styles.quizNote}>Pass with at least {passPct}%.</Text>
 
         {questions.map((q, qi) => {

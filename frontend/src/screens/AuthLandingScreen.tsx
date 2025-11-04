@@ -7,6 +7,7 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { getCurrentUser } from "../storage/userStore";
 import { getAuthToken } from "../services/api/client";
@@ -62,9 +63,24 @@ export default function AuthLandingScreen({ navigation }: any) {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
+          {/* App Header */}
+          <View style={styles.headerContainer}>
+            <Text style={styles.appName}>NationWise</Text>
+            <Text style={styles.tagline}>Leading teens to medical independence.</Text>
+          </View>
+
+          {/* Butterfly Image */}
+          <View style={styles.butterflyContainer}>
+            <Image 
+              source={require("../../assets/butterfly.png")} 
+              style={styles.butterflyImage}
+              resizeMode="contain"
+            />
+          </View>
+
           <Text style={styles.title}>Welcome 👋</Text>
           <Text style={styles.desc}>
-            We’ll help you get ready to move to adult care.
+            We'll help you get ready to move to adult care.
           </Text>
 
           <Pressable
@@ -100,6 +116,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#1E3A8A",
+    marginBottom: 4,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
+    textAlign: "center",
+  },
+  butterflyContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  butterflyImage: {
+    width: 120,
+    height: 120,
   },
   title: {
     fontSize: 22,

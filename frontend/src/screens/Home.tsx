@@ -44,7 +44,13 @@ const DRESSED_CATERPILLARS = {
   spider: require('../../assets/spiderpillar.png'),
   phone: require('../../assets/phonepillar.png'),
   skateboard: require('../../assets/skatepillar.png'),
+  butterfly: require('../../assets/butterfly.png'),
 };
+
+// Sparkling butterfly (for special transformation)
+const BUTTERFLY_SPARKLE = require('../../assets/sparkle.png');
+
+const BUTTERFLY_THRESHOLD = 500; // Points needed to transform
 
 export default function Home({ navigation }: any) {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -55,6 +61,8 @@ export default function Home({ navigation }: any) {
   const [currentOutfit, setCurrentOutfit] = useState<string | null>(null);
   const [userPoints, setUserPoints] = useState(0);
   const [nextVisit, setNextVisit] = useState<Visit | null>(null);
+  const [isButterfly, setIsButterfly] = useState(false);
+  const [showButterflyModal, setShowButterflyModal] = useState(false);
   // Chatbot state
   const [chatVisible, setChatVisible] = useState(false);
   const [messages, setMessages] = useState<{ text: string; sender: string }[]>([]);
@@ -69,6 +77,9 @@ export default function Home({ navigation }: any) {
 
   // Get dressed caterpillar or regular
   const getCurrentCaterpillar = () => {
+    if (isButterfly) {
+      return BUTTERFLY_SPARKLE;
+    }
     if (currentOutfit && DRESSED_CATERPILLARS[currentOutfit as keyof typeof DRESSED_CATERPILLARS]) {
       return DRESSED_CATERPILLARS[currentOutfit as keyof typeof DRESSED_CATERPILLARS];
     }
@@ -77,14 +88,14 @@ export default function Home({ navigation }: any) {
 
   // Animation effect - cycles through caterpillar frames (only when no outfit)
   useEffect(() => {
-    if (currentOutfit) return; // Don't animate when wearing outfit
+    if (currentOutfit || isButterfly) return; // Don't animate when wearing outfit or butterfly
     
     const interval = setInterval(() => {
       setAnimFrame((prev) => (prev + 1) % 3);
     }, 300);
 
     return () => clearInterval(interval);
-  }, [currentOutfit]);
+  }, [currentOutfit, isButterfly]);
 
   // helper: load user from storage
   async function load() {
@@ -94,6 +105,18 @@ export default function Home({ navigation }: any) {
     // Load points from progressStore instead of calculating from plan
     const points = await getPoints();
     setUserPoints(points);
+
+    // Load owned items
+    const savedItems = await AsyncStorage.getItem('ownedItems');
+    if (savedItems) {
+      setOwnedItems(JSON.parse(savedItems));
+    }
+
+    // Load current outfit
+    const savedOutfit = await AsyncStorage.getItem('currentOutfit');
+    if (savedOutfit) {
+      setCurrentOutfit(savedOutfit);
+    }
 
     await loadAppointments();
   }
@@ -238,9 +261,22 @@ export default function Home({ navigation }: any) {
   };
 
   const handleRemoveOutfit = async () => {
+    if (isButterfly) {
+      alert("You can't remove your butterfly transformation!");
+      return;
+    }
     setCurrentOutfit(null);
     await AsyncStorage.removeItem('currentOutfit');
     alert("Outfit removed!");
+  };
+
+  const handleButterflyTransformation = async () => {
+    setIsButterfly(true);
+    setCurrentOutfit(null);
+    await AsyncStorage.setItem('isButterfly', 'true');
+    await AsyncStorage.removeItem('currentOutfit');
+    setShowButterflyModal(false);
+    alert("🦋 You've transformed into a beautiful butterfly! 🦋");
   };
 
   if (!user) {
@@ -266,42 +302,66 @@ export default function Home({ navigation }: any) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Header card */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerLeftRow}>
+        {/* Header bar */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
             <View style={styles.avatarBubble}>
               <Text style={styles.avatarText}>
                 {user.name?.[0]?.toUpperCase() || "Y"}
               </Text>
             </View>
-            <View style={{ flexShrink: 1 }}>
-              <Text style={styles.helloText}>
-                hey {user.name?.split(" ")[0] || "there"} 👋
+            <View>
+              <Text style={styles.hello}>
+                Hey {user.name?.split(" ")[0] || "there"} 👋
               </Text>
-              <Text style={styles.subHelloText}>
-                here's your health stuff for today
+              <Text style={styles.subtitle}>
+                You're doing great
               </Text>
             </View>
           </View>
 
           <View style={styles.pointsPill}>
-            <Text style={styles.pointsNum}>{userPoints}</Text>
-            <Text style={styles.pointsPts}>pts</Text>
+            <Text>⚡</Text>
+            <Text style={styles.pointsText}>{userPoints}</Text>
+            <Text style={styles.pointsSub}>pts</Text>
           </View>
         </View>
+
+        {/* Show progress to butterfly if not yet transformed */}
+        {!isButterfly && userPoints < BUTTERFLY_THRESHOLD && (
+          <View style={styles.butterflyProgressCard}>
+            <Text style={styles.butterflyProgressTitle}>
+              🦋 Transform into a Butterfly!
+            </Text>
+            <Text style={styles.butterflyProgressText}>
+              {userPoints} / {BUTTERFLY_THRESHOLD} points
+            </Text>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { width: `${Math.min((userPoints / BUTTERFLY_THRESHOLD) * 100, 100)}%`, backgroundColor: '#8B5CF6' },
+                ]}
+              />
+            </View>
+            <Text style={styles.butterflyProgressSubtext}>
+              {BUTTERFLY_THRESHOLD - userPoints} points to go!
+            </Text>
+          </View>
+        )}
 
         {/* If they didn't pass onboarding/assessment yet, put a banner */}
         {needsAssessment ? (
           <Pressable
             style={styles.assessmentBanner}
-            onPress={() => navigation.navigate("FinalAssessment")}
+            onPress={() => navigation.navigate("Assess")}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.bannerTitle}>
                 Start your self-check
               </Text>
               <Text style={styles.bannerSub}>
-                Quick questions so we know what to help you learn
+                Take a quick quiz so we know what to help you learn.
               </Text>
             </View>
             <Ionicons
@@ -316,7 +376,7 @@ export default function Home({ navigation }: any) {
               <View>
                 <Text style={styles.cardTitle}>This Week</Text>
                 <Text style={styles.muted}>
-                  Keep building your independence.
+                  Keep up the momentum!
                 </Text>
               </View>
               <View style={styles.ring}>
@@ -340,18 +400,25 @@ export default function Home({ navigation }: any) {
         {/* Animated Caterpillar with Shop/Closet buttons */}
         <View style={styles.caterpillarContainer}>
           <View style={styles.caterpillarControls}>
-            <Pressable
-              style={styles.controlBtn}
-              onPress={() => setShowShop(true)}
-            >
-              <Text style={styles.controlBtnText}>🛍️ Shop</Text>
-            </Pressable>
-            <Pressable
-              style={styles.controlBtn}
-              onPress={() => setShowCloset(true)}
-            >
-              <Text style={styles.controlBtnText}>👕 Closet</Text>
-            </Pressable>
+            {!isButterfly && (
+              <>
+                <Pressable
+                  style={styles.controlBtn}
+                  onPress={() => setShowShop(true)}
+                >
+                  <Text style={styles.controlBtnText}>🛍️ Shop</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.controlBtn}
+                  onPress={() => setShowCloset(true)}
+                >
+                  <Text style={styles.controlBtnText}>👕 Closet</Text>
+                </Pressable>
+              </>
+            )}
+            {isButterfly && (
+              <Text style={styles.butterflyLabel}>🦋 You're a Butterfly! 🦋</Text>
+            )}
           </View>
           
           <Image 
@@ -360,7 +427,7 @@ export default function Home({ navigation }: any) {
             resizeMode="contain"
           />
           
-          {currentOutfit && (
+          {currentOutfit && !isButterfly && (
             <Pressable
               style={styles.removeOutfitBtn}
               onPress={handleRemoveOutfit}
@@ -373,53 +440,32 @@ export default function Home({ navigation }: any) {
         {/* Coming Up */}
         <Text style={styles.sectionTitle}>Coming Up</Text>
         <View style={styles.card}>
-          {nextVisit ? (
-            <>
-              <Text style={styles.cardSubtitle}>
-                Next Appointment
-              </Text>
+          <Text style={styles.cardSubtitle}>
+            Next Appointment
+          </Text>
 
-              <Row icon="calendar-outline" text={nextVisit.date} />
-              <Row icon="time-outline" text={nextVisit.time} />
-              <Row icon="person-outline" text={nextVisit.provider} />
+          <Row icon="calendar-outline" text="Tuesday, Oct 29" />
+          <Row icon="time-outline" text="3:00 PM" />
+          <Row icon="person-outline" text="Dr. Nguyen" />
 
-              <Text style={[styles.muted, { marginTop: 6 }]}>
-                {nextVisit.reason}
-              </Text>
+          <Text style={[styles.muted, { marginTop: 6 }]}>
+            Check-up
+          </Text>
 
-              <Pressable
-                style={[styles.primaryBtn, { marginTop: 14 }]}
-                onPress={() => navigation.navigate("Appointments")}
-              >
-                <Text style={styles.primaryBtnText}>
-                  Start Prep  →
-                </Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.cardSubtitle}>
-                No Upcoming Appointments
-              </Text>
-              <Text style={styles.muted}>
-                Add your next appointment to get prepared.
-              </Text>
-              <Pressable
-                style={[styles.primaryBtn, { marginTop: 14 }]}
-                onPress={() => navigation.navigate("Appointments", { add: true })}
-              >
-                <Text style={styles.primaryBtnText}>
-                  Add Appointment  →
-                </Text>
-              </Pressable>
-            </>
-          )}
+          <Pressable
+            style={[styles.primaryBtn, { marginTop: 14 }]}
+            onPress={() => navigation.navigate("Appointments")}
+          >
+            <Text style={styles.primaryBtnText}>
+              Start Prep  →
+            </Text>
+          </Pressable>
         </View>
 
         {/* To-Do / Goals */}
         <View style={styles.rowBetween}>
           <Text style={styles.sectionTitle}>
-            Your Skills
+            Your Goals
           </Text>
           <View style={styles.itemsPill}>
             <Text style={styles.itemsPillText}>
@@ -431,7 +477,7 @@ export default function Home({ navigation }: any) {
         {remainingGoals.length === 0 ? (
           <View style={styles.card}>
             <Text style={styles.muted}>
-              You're caught up on everything in your plan.
+              You've finished everything in your plan 🎉
             </Text>
             <Pressable
               style={[
@@ -454,7 +500,7 @@ export default function Home({ navigation }: any) {
                   <View style={styles.todoLine1}>
                     <View style={styles.chip}>
                       <Text style={styles.chipText}>
-                        next step
+                        Goal
                       </Text>
                     </View>
                   </View>
@@ -471,7 +517,7 @@ export default function Home({ navigation }: any) {
                   }
                 >
                   <Text style={styles.startBtnText}>
-                    Open plan
+                    Work on it
                   </Text>
                 </Pressable>
               </View>
@@ -538,24 +584,6 @@ export default function Home({ navigation }: any) {
           />
         </View>
 
-        {/* Shop / Rewards */}
-        <View style={styles.shopCard}>
-          <Text style={styles.shopTitle}>
-            Rewards
-          </Text>
-          <Text style={styles.shopSub}>
-            You have {userPoints} points to use.
-          </Text>
-          <Pressable
-            style={styles.shopBtn}
-            onPress={() => setShowShop(true)}
-          >
-            <Text style={styles.shopBtnText}>
-              Open Rewards
-            </Text>
-          </Pressable>
-        </View>
-
         <View style={{ height: 32 }} />
       </ScrollView>
 
@@ -580,7 +608,11 @@ export default function Home({ navigation }: any) {
               </Text>
             </View>
 
-            <ScrollView style={styles.shopGrid}>
+            <ScrollView 
+              style={styles.shopScrollView}
+              contentContainerStyle={styles.shopScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
               {SHOP_ITEMS.map((item) => (
                 <View key={item.id} style={styles.shopItem}>
                   <Image 
@@ -626,8 +658,36 @@ export default function Home({ navigation }: any) {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.shopGrid}>
-              {ownedItems.length === 0 ? (
+            <ScrollView 
+              style={styles.shopScrollView}
+              contentContainerStyle={styles.shopScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {/* Show butterfly transformation option if eligible and not transformed yet */}
+              {userPoints >= BUTTERFLY_THRESHOLD && !isButterfly && (
+                <View style={styles.butterflyTransformOption}>
+                  <Image 
+                    source={BUTTERFLY_SPARKLE} 
+                    style={styles.shopItemImage}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.shopItemInfo}>
+                    <Text style={styles.shopItemName}>🦋 Butterfly Transformation</Text>
+                    <Text style={styles.butterflyReadyText}>You're ready to transform!</Text>
+                  </View>
+                  <Pressable
+                    style={styles.transformClosetBtn}
+                    onPress={() => {
+                      setShowCloset(false);
+                      setShowButterflyModal(true);
+                    }}
+                  >
+                    <Text style={styles.buyBtnText}>Transform</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {ownedItems.length === 0 && userPoints < BUTTERFLY_THRESHOLD ? (
                 <View style={styles.emptyCloset}>
                   <Text style={styles.emptyText}>
                     Your closet is empty! Buy items from the shop.
@@ -668,6 +728,44 @@ export default function Home({ navigation }: any) {
                 })
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Butterfly Transformation Modal */}
+      <Modal
+        visible={showButterflyModal}
+        animationType="fade"
+        transparent={true}
+      >
+        <View style={styles.butterflyModalOverlay}>
+          <View style={styles.butterflyModalContent}>
+            <Text style={styles.butterflyModalTitle}>
+              🎉 Congratulations! 🎉
+            </Text>
+            <Text style={styles.butterflyModalText}>
+              You've earned {BUTTERFLY_THRESHOLD} points! 
+              You're ready to transform into a beautiful butterfly!
+            </Text>
+            <Image 
+              source={BUTTERFLY_SPARKLE} 
+              style={styles.butterflyPreview}
+              resizeMode="contain"
+            />
+            <Pressable
+              style={styles.transformBtn}
+              onPress={handleButterflyTransformation}
+            >
+              <Text style={styles.transformBtnText}>
+                Transform Now! 🦋
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.laterBtn}
+              onPress={() => setShowButterflyModal(false)}
+            >
+              <Text style={styles.laterBtnText}>Maybe Later</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -776,23 +874,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  headerCard: {
+  header: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "white",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 16,
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
-  headerLeftRow: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    flexShrink: 1,
   },
   avatarBubble: {
     backgroundColor: "#E0F2FE",
@@ -806,37 +897,63 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0F172A",
   },
-  helloText: {
-    fontSize: 18,
+  hello: {
+    fontSize: 20,
     fontWeight: "800",
     color: "#0F172A",
   },
-  subHelloText: {
+  subtitle: {
     color: "#64748B",
-    fontSize: 14,
-    fontWeight: "600",
+    marginTop: 2,
   },
   pointsPill: {
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 60,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 4,
+    minWidth: 70,
   },
-  pointsNum: {
-    color: "white",
+  pointsText: {
     fontWeight: "800",
+    color: "#0F172A",
+    fontSize: 16,
+  },
+  pointsSub: {
+    color: "#64748B",
+    marginLeft: 1,
+    fontSize: 11,
+  },
+
+  butterflyProgressCard: {
+    backgroundColor: "#F3E8FF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#C084FC",
+  },
+  butterflyProgressTitle: {
     fontSize: 18,
-    lineHeight: 20,
+    fontWeight: "800",
+    color: "#6B21A8",
+    marginBottom: 8,
     textAlign: "center",
   },
-  pointsPts: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 14,
+  butterflyProgressText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#7C3AED",
     textAlign: "center",
+    marginBottom: 8,
+  },
+  butterflyProgressSubtext: {
+    fontSize: 14,
+    color: "#9333EA",
+    textAlign: "center",
+    marginTop: 8,
   },
 
   assessmentBanner: {
@@ -870,8 +987,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
   rowBetween: {
     flexDirection: "row",
@@ -1041,14 +1156,12 @@ const styles = StyleSheet.create({
 
   quickGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 14,
     gap: 10,
   },
   square: {
-    flexGrow: 1,
-    flexBasis: "48%",
+    flex: 1,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
@@ -1058,41 +1171,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "700",
     textAlign: "center",
-  },
-
-  shopCard: {
-    backgroundColor: "#7C3AED",
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 6,
-    shadowColor: "#1F2937",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-  },
-  shopTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "white",
-    marginBottom: 6,
-  },
-  shopSub: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.9)",
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  shopBtn: {
-    backgroundColor: "white",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    alignItems: "center",
-  },
-  shopBtnText: {
-    color: "#7C3AED",
-    fontWeight: "800",
-    fontSize: 15,
   },
 
   // Modal styles
@@ -1105,17 +1183,14 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingBottom: 20,
-    maxHeight: "85%",
-    height: "85%",
+    padding: 20,
+    height: "70%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
-    paddingHorizontal: 20,
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 24,
@@ -1127,7 +1202,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 16,
-    marginHorizontal: 20,
   },
   pointsDisplayText: {
     fontSize: 16,
@@ -1135,9 +1209,10 @@ const styles = StyleSheet.create({
     color: "#1D4ED8",
     textAlign: "center",
   },
-  shopGrid: {
+  shopScrollView: {
     flex: 1,
-    paddingHorizontal: 20,
+  },
+  shopScrollContent: {
     paddingBottom: 20,
   },
   shopItem: {
@@ -1193,6 +1268,92 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: "#64748B",
+    textAlign: "center",
+  },
+  butterflyTransformOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3E8FF",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 12,
+    borderWidth: 2,
+    borderColor: "#C084FC",
+  },
+  butterflyReadyText: {
+    color: "#7C3AED",
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  transformClosetBtn: {
+    backgroundColor: "#8B5CF6",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+
+  // Butterfly transformation modal
+  butterflyModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  butterflyModalContent: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 30,
+    alignItems: "center",
+    width: "90%",
+    maxWidth: 400,
+  },
+  butterflyModalTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  butterflyModalText: {
+    fontSize: 16,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  butterflyPreview: {
+    width: 150,
+    height: 150,
+    marginBottom: 24,
+  },
+  transformBtn: {
+    backgroundColor: "#8B5CF6",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: "100%",
+    marginBottom: 12,
+  },
+  transformBtnText: {
+    color: "white",
+    fontWeight: "800",
+    fontSize: 18,
+    textAlign: "center",
+  },
+  laterBtn: {
+    paddingVertical: 10,
+  },
+  laterBtnText: {
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  butterflyLabel: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#8B5CF6",
     textAlign: "center",
   },
 
