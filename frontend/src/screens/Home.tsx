@@ -6,9 +6,10 @@ import {
   Text,
   StyleSheet,
   Pressable,
+  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   getCurrentUser,
@@ -17,6 +18,61 @@ import {
 
 export default function Home({ navigation }: any) {
   const [user, setUser] = useState<UserProfile | null>(null);
+
+  //chatbot starts here
+const [chatVisible, setChatVisible] = useState(false);
+const [messages, setMessages] = useState<{ text: string; sender: string }[]>([]);
+const [input, setInput] = useState("");
+
+async function sendMessage() {
+// does nothing if input is empty
+  if (!input.trim()) return;
+
+  const userMsg = { text: input, sender: "user" };
+  setMessages((prev) => [...prev, userMsg]);
+  //clears user text box after sending
+  setInput("");
+
+  try {
+    //sends message to dialogflow api
+    const response = await fetch(
+      "https://dialogflow.googleapis.com/v2/projects/YOUR_PROJECT_ID/agent/sessions/123456789:detectIntent",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer YOUR_ACCESS_TOKEN`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          queryInput: {
+            text: { text: input, languageCode: "en" },
+          },
+        }),
+      }
+    );
+
+    //parse the api response
+    const data = await response.json();
+    //gets reply from dialogflow response
+    const botReply =
+      data.queryResult?.fulfillmentText ||
+      "Sorry, I didn’t understand that.";
+
+      //adds bot reply to chat
+    setMessages((prev) => [
+      ...prev,
+      { text: botReply, sender: "bot" },
+    ]);
+  } catch (err) {
+    //connection or api errors
+    console.error("Dialogflow error:", err);
+    setMessages((prev) => [
+      ...prev,
+      { text: "Error connecting to Dialogflow.", sender: "bot" },
+    ]);
+  }
+}
+
 
   // helper: load user from storage
   async function load() {
@@ -72,8 +128,8 @@ export default function Home({ navigation }: any) {
 
   // show assessment banner if they haven't passed yet
   const needsAssessment = !user.hasCompletedAssessment;
-
   return (
+    <>
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F8FB" }}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header bar */}
@@ -319,8 +375,58 @@ export default function Home({ navigation }: any) {
         <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
+    {/* toggles chatbot modal */}
+  <Pressable
+  style={styles.chatbotButton}
+  onPress={() => setChatVisible(true)}
+>
+  <Ionicons name="chatbubble-ellipses" size={26} color="white" />
+</Pressable>
+
+{/* chat modal and button to close chat */}
+{chatVisible && (
+  <View style={styles.chatModal}>
+    <View style={styles.chatHeader}>
+      <Text style={styles.chatTitle}>Chat with Assistant 🤖</Text>
+      <Pressable onPress={() => setChatVisible(false)}>
+        <Ionicons name="close" size={22} color="#111827" />
+      </Pressable>
+    </View>
+{/*scrollable chat area for messages*/}
+    <ScrollView style={styles.chatMessages}>
+      {messages.map((msg, i) => (
+        <View
+          key={i}
+          style={[
+            styles.messageBubble,
+            msg.sender === "user"
+              ? styles.userMessage
+              : styles.botMessage,
+          ]}
+        >
+          <Text style={styles.messageText}>{msg.text}</Text>
+        </View>
+      ))}
+    </ScrollView>
+{/* input area w/ send button */}
+    <View style={styles.inputRow}>
+      <TextInput
+        style={styles.chatInput}
+        placeholder="Type your message..."
+        value={input}
+        onChangeText={setInput}
+      />
+      <Pressable style={styles.sendBtn} onPress={sendMessage}>
+        <Ionicons name="send" size={20} color="white" />
+      </Pressable>
+    </View>
+  </View>
+)}
+
+  </>
   );
 }
+
 
 // Little row for appointment info
 function Row({ icon, text }: { icon: any; text: string }) {
@@ -623,4 +729,103 @@ const styles = StyleSheet.create({
     color: "#3730A3",
     fontWeight: "800",
   },
+
+  //button in bottom right corner
+  chatbotButton: {
+  position: "absolute",
+  bottom: 30,
+  right: 20,
+  backgroundColor: "#2563EB",
+  width: 60,
+  height: 60,
+  borderRadius: 30,
+  alignItems: "center",
+  justifyContent: "center",
+  shadowColor: "#000",
+  shadowOpacity: 0.2,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 2 },
+},
+
+chatModal: {
+  position: "absolute",
+  bottom: 100,
+  right: 10,
+  left: 10,
+  backgroundColor: "white",
+  borderRadius: 16,
+  padding: 12,
+  shadowColor: "#000",
+  shadowOpacity: 0.15,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 3 },
+  maxHeight: "70%",
+},
+
+chatHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 8,
+},
+
+chatTitle: {
+  fontWeight: "800",
+  fontSize: 16,
+  color: "#111827",
+},
+
+chatMessages: {
+  maxHeight: 250,
+  marginBottom: 10,
+},
+
+messageBubble: {
+  padding: 10,
+  borderRadius: 12,
+  marginVertical: 4,
+  maxWidth: "80%",
+},
+
+//styling for user messages
+userMessage: {
+  backgroundColor: "#2563EB",
+  alignSelf: "flex-end",
+},
+
+//styling for the bot messages
+botMessage: {
+  backgroundColor: "#E5E7EB",
+  alignSelf: "flex-start",
+},
+
+//text styling
+messageText: {
+  color: "white",
+},
+
+//input row styling
+inputRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+},
+
+//text input field
+chatInput: {
+  flex: 1,
+  borderWidth: 1,
+  borderColor: "#E5E7EB",
+  borderRadius: 20,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+},
+
+//send button
+sendBtn: {
+  backgroundColor: "#2563EB",
+  borderRadius: 20,
+  padding: 10,
+},
+
 });
