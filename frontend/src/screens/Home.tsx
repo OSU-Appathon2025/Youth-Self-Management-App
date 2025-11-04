@@ -8,6 +8,7 @@ import {
   Pressable,
   Image,
   Modal,
+  TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -19,6 +20,7 @@ import {
 } from "../storage/userStore";
 import { getAllAppointments, type Appointment } from "../services/api/appointments";
 import { getPoints } from "../storage/progressStore";
+import { DIALOGFLOW_PROJECT_ID, DIALOGFLOW_ACCESS_TOKEN } from '@env';
 
 type Visit = {
   id: string;
@@ -53,6 +55,10 @@ export default function Home({ navigation }: any) {
   const [currentOutfit, setCurrentOutfit] = useState<string | null>(null);
   const [userPoints, setUserPoints] = useState(0);
   const [nextVisit, setNextVisit] = useState<Visit | null>(null);
+  // Chatbot state
+  const [chatVisible, setChatVisible] = useState(false);
+  const [messages, setMessages] = useState<{ text: string; sender: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
 
   // Caterpillar animation frames
   const caterpillarFrames = [
@@ -90,6 +96,48 @@ export default function Home({ navigation }: any) {
     setUserPoints(points);
 
     await loadAppointments();
+  }
+
+  async function sendMessage() {
+    if (!chatInput.trim()) return;
+
+    const userMsg = { text: chatInput, sender: "user" };
+    setMessages((prev) => [...prev, userMsg]);
+    setChatInput("");
+
+    try {
+      const response = await fetch(
+        `https://dialogflow.googleapis.com/v2/projects/${DIALOGFLOW_PROJECT_ID}/agent/sessions/123456789:detectIntent`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${DIALOGFLOW_ACCESS_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            queryInput: {
+              text: { text: chatInput, languageCode: "en" },
+            },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      const botReply =
+        data.queryResult?.fulfillmentText ||
+        "Sorry, I didn't understand that.";
+
+      setMessages((prev) => [
+        ...prev,
+        { text: botReply, sender: "bot" },
+      ]);
+    } catch (err) {
+      console.error("Dialogflow error:", err);
+      setMessages((prev) => [
+        ...prev,
+        { text: "Error connecting to Dialogflow.", sender: "bot" },
+      ]);
+    }
   }
 
   // helper: load next appointment from backend
@@ -623,6 +671,61 @@ export default function Home({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      {/* Chatbot Button */}
+      <Pressable
+        style={styles.chatbotButton}
+        onPress={() => setChatVisible(true)}
+      >
+        <Ionicons name="chatbubble-ellipses" size={26} color="white" />
+      </Pressable>
+
+      {/* Chat Modal */}
+      {chatVisible && (
+        <View style={styles.chatModal}>
+          <View style={styles.chatHeader}>
+            <Text style={styles.chatTitle}>Chat with Assistant 🤖</Text>
+            <Pressable onPress={() => setChatVisible(false)}>
+              <Ionicons name="close" size={22} color="#111827" />
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.chatMessages}>
+            {messages.map((msg, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.messageBubble,
+                  msg.sender === "user"
+                    ? styles.userMessage
+                    : styles.botMessage,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.messageText,
+                    msg.sender === "bot" && { color: "#111827" },
+                  ]}
+                >
+                  {msg.text}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.chatInput}
+              placeholder="Type your message..."
+              value={chatInput}
+              onChangeText={setChatInput}
+            />
+            <Pressable style={styles.sendBtn} onPress={sendMessage}>
+              <Ionicons name="send" size={20} color="white" />
+            </Pressable>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1091,5 +1194,86 @@ const styles = StyleSheet.create({
   emptyText: {
     color: "#64748B",
     textAlign: "center",
+  },
+
+  // Chatbot styles
+  chatbotButton: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    backgroundColor: "#2563EB",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  chatModal: {
+    position: "absolute",
+    bottom: 100,
+    right: 10,
+    left: 10,
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    maxHeight: "70%",
+  },
+  chatHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  chatTitle: {
+    fontWeight: "800",
+    fontSize: 16,
+    color: "#111827",
+  },
+  chatMessages: {
+    maxHeight: 250,
+    marginBottom: 10,
+  },
+  messageBubble: {
+    padding: 10,
+    borderRadius: 12,
+    marginVertical: 4,
+    maxWidth: "80%",
+  },
+  userMessage: {
+    backgroundColor: "#2563EB",
+    alignSelf: "flex-end",
+  },
+  botMessage: {
+    backgroundColor: "#E5E7EB",
+    alignSelf: "flex-start",
+  },
+  messageText: {
+    color: "white",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  chatInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  sendBtn: {
+    backgroundColor: "#2563EB",
+    borderRadius: 20,
+    padding: 10,
   },
 });
