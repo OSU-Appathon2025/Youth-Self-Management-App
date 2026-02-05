@@ -17,6 +17,7 @@ const emergencyContactRouter = require('./routers/emergencyContactRouter');
 const medicationRouter = require('./routers/medicationRouter');
 const selfAssessmentRouter = require('./routers/selfAssessmentRouter');
 const progressReportRouter = require('./routers/progressReportRouter');
+const taskRouter = require('./routers/taskRouter');
 
 // Middleware
 app.use(express.json());
@@ -41,6 +42,7 @@ app.use('/api/emergency-contacts', emergencyContactRouter);
 app.use('/api/medications', medicationRouter);
 app.use('/api/self-assessments', selfAssessmentRouter);
 app.use('/api/progress-reports', progressReportRouter);
+app.use('/api/tasks', taskRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
